@@ -1,9 +1,10 @@
 'use client';
 
-import { useEffect, useState, useCallback, useMemo, useTransition } from 'react';
+import { useEffect, useState, useCallback, useMemo, useTransition, useRef } from 'react';
 import { GameState, Player, Character } from '@/types/game';
 import { useRouter } from 'next/navigation';
 import { usePusher } from '@/hooks/usePusher';
+import html2canvas from 'html2canvas';
 
 interface GameRoomProps {
   gameToken: string;
@@ -17,10 +18,10 @@ const characterEmojis: Record<Character, string> = {
 };
 
 const characterColors: Record<Character, string> = {
-  RAJA: 'bg-yellow-500',
-  MANTRI: 'bg-blue-500',
-  CHOR: 'bg-red-500',
-  SIPAHI: 'bg-green-500'
+  RAJA: 'bg-amber-100 border-amber-300 text-amber-900',
+  MANTRI: 'bg-blue-100 border-blue-300 text-blue-900',
+  CHOR: 'bg-red-100 border-red-300 text-red-900',
+  SIPAHI: 'bg-emerald-100 border-emerald-300 text-emerald-900'
 };
 
 export default function GameRoom({ gameToken }: GameRoomProps) {
@@ -32,6 +33,61 @@ export default function GameRoom({ gameToken }: GameRoomProps) {
   const [animating, setAnimating] = useState(false);
   const [isPending, startTransition] = useTransition();
   const router = useRouter();
+  const resultsCardRef = useRef<HTMLDivElement>(null);
+
+  // Function to generate and share result image
+  const handleShareImage = useCallback(async () => {
+    if (!resultsCardRef.current) return;
+
+    try {
+      setLoading(true);
+      
+      // Generate canvas from the results card
+      const canvas = await html2canvas(resultsCardRef.current, {
+        backgroundColor: '#f8fafc',
+        scale: 2, // Higher quality
+        logging: false,
+        useCORS: true
+      });
+
+      // Convert to blob
+      canvas.toBlob(async (blob) => {
+        if (!blob) return;
+
+        const file = new File([blob], 'rmcs-results.png', { type: 'image/png' });
+
+        // Try to use Web Share API (mobile-friendly)
+        if (navigator.share && navigator.canShare?.({ files: [file] })) {
+          try {
+            await navigator.share({
+              files: [file],
+              title: 'RMCS Game Results',
+              text: '🏆 Check out our RMCS game results!'
+            });
+          } catch (err) {
+            // User cancelled or share failed, fallback to download
+            downloadImage(canvas);
+          }
+        } else {
+          // Fallback to download
+          downloadImage(canvas);
+        }
+      }, 'image/png');
+      
+    } catch (err) {
+      console.error('Failed to generate image:', err);
+      setError('Failed to generate image');
+    } finally {
+      setLoading(false);
+    }
+  }, [gameToken]);
+
+  const downloadImage = (canvas: HTMLCanvasElement) => {
+    const link = document.createElement('a');
+    link.download = `rmcs-results-${gameToken}.png`;
+    link.href = canvas.toDataURL();
+    link.click();
+  };
 
   // Memoized derived state (computed only when dependencies change)
   const currentPlayer = useMemo(
@@ -55,13 +111,25 @@ export default function GameRoom({ gameToken }: GameRoomProps) {
     setPlayerId(storedPlayerId);
   }, [gameToken, router]);
 
-  // Memoized callback for Pusher updates
+  // Memoized callback for Pusher updates with animation handling
   const handlePusherUpdate = useCallback((newState: GameState) => {
     console.log('📡 Pusher update received:', newState.gameStatus);
+    
+    // Auto-trigger animation when status changes to DISTRIBUTING
+    if (newState.gameStatus === 'DISTRIBUTING' && gameState?.gameStatus !== 'DISTRIBUTING') {
+      setAnimating(true);
+      // Animation will last 2.5 seconds, matching the server timeout
+    }
+    
+    // Stop animation when status changes away from DISTRIBUTING
+    if (newState.gameStatus !== 'DISTRIBUTING' && gameState?.gameStatus === 'DISTRIBUTING') {
+      setAnimating(false);
+    }
+    
     startTransition(() => {
       setGameState(newState);
     });
-  }, []);
+  }, [gameState?.gameStatus]);
 
   // Subscribe to real-time updates via Pusher
   usePusher({
@@ -203,14 +271,14 @@ export default function GameRoom({ gameToken }: GameRoomProps) {
   // Early return for loading state
   if (!gameState) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-purple-600 via-pink-500 to-red-500 flex items-center justify-center">
+      <div className="min-h-screen bg-slate-50 flex items-center justify-center">
         <div className="text-white text-xl">Loading...</div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-purple-600 via-pink-500 to-red-500 p-4">
+    <div className="min-h-screen bg-slate-50 p-4">
       <div className="max-w-4xl mx-auto">
         {/* Header */}
         <div className="bg-white rounded-2xl shadow-2xl p-6 mb-4">
@@ -221,7 +289,7 @@ export default function GameRoom({ gameToken }: GameRoomProps) {
             </div>
             <div className="bg-purple-100 px-6 py-3 rounded-lg">
               <p className="text-xs text-gray-600">Game Token</p>
-              <p className="text-2xl font-bold text-purple-600">{gameToken}</p>
+              <p className="text-2xl font-bold text-slate-900">{gameToken}</p>
             </div>
           </div>
         </div>
@@ -234,12 +302,12 @@ export default function GameRoom({ gameToken }: GameRoomProps) {
 
         {/* Share Game Code - Show when waiting for players */}
         {gameState.gameStatus === 'WAITING' && gameState.currentRound === 0 && gameState.players.length < 4 && (
-          <div className="bg-gradient-to-r from-green-50 to-blue-50 border-2 border-green-300 rounded-2xl shadow-xl p-6 mb-4">
+          <div className="bg-white border-2 border-slate-200 rounded-2xl shadow-xl p-6 mb-4">
             <div className="text-center mb-4">
               <h3 className="text-lg font-bold text-gray-800 mb-2">📱 Share Game Code</h3>
               <div className="bg-white rounded-xl p-4 mb-4 border-2 border-dashed border-purple-300">
                 <p className="text-sm text-gray-600 mb-2">Game Code:</p>
-                <p className="text-4xl font-bold text-purple-600 tracking-wider mb-3">{gameToken}</p>
+                <p className="text-4xl font-bold text-slate-900 tracking-wider mb-3">{gameToken}</p>
                 <p className="text-xs text-gray-500">Share this code with your friends to join</p>
               </div>
             </div>
@@ -260,7 +328,7 @@ export default function GameRoom({ gameToken }: GameRoomProps) {
                     setError('Failed to copy. Please copy manually: ' + gameToken);
                   }
                 }}
-                className="flex-1 bg-gradient-to-r from-blue-500 to-blue-600 text-white py-3 px-6 rounded-lg font-semibold hover:from-blue-600 hover:to-blue-700 transition-all flex items-center justify-center gap-2"
+                className="flex-1 bg-slate-900 text-white py-3 px-6 rounded-lg font-semibold hover:bg-slate-800 transition-all flex items-center justify-center gap-2"
               >
                 📋 Copy Code
               </button>
@@ -274,7 +342,7 @@ export default function GameRoom({ gameToken }: GameRoomProps) {
                   );
                   window.open(`https://wa.me/?text=${message}`, '_blank');
                 }}
-                className="flex-1 bg-gradient-to-r from-green-500 to-green-600 text-white py-3 px-6 rounded-lg font-semibold hover:from-green-600 hover:to-green-700 transition-all flex items-center justify-center gap-2"
+                className="flex-1 bg-emerald-600 text-white py-3 px-6 rounded-lg font-semibold hover:bg-emerald-700 transition-all flex items-center justify-center gap-2"
               >
                 <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
                   <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.890-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413Z"/>
@@ -292,7 +360,7 @@ export default function GameRoom({ gameToken }: GameRoomProps) {
               Waiting for Players ({gameState.players.length}/4)
             </h2>
             <p className="text-sm text-gray-600 mb-4">
-              Game will have <span className="font-bold text-purple-600">{gameState.maxRounds}</span> round{gameState.maxRounds !== 1 ? 's' : ''}
+              Game will have <span className="font-bold text-slate-900">{gameState.maxRounds}</span> round{gameState.maxRounds !== 1 ? 's' : ''}
             </p>
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
               {[...Array(4)].map((_, index) => {
@@ -307,7 +375,7 @@ export default function GameRoom({ gameToken }: GameRoomProps) {
                     {player ? (
                       <>
                         <p className="font-semibold text-gray-800">{player.name}</p>
-                        {player.isHost && <span className="text-xs text-purple-600">👑 Host</span>}
+                        {player.isHost && <span className="text-xs text-slate-900">👑 Host</span>}
                       </>
                     ) : (
                       <p className="text-gray-400">Waiting...</p>
@@ -320,7 +388,7 @@ export default function GameRoom({ gameToken }: GameRoomProps) {
               <button
                 onClick={handleDistributeChits}
                 disabled={loading}
-                className="w-full bg-gradient-to-r from-purple-600 to-pink-600 text-white py-3 rounded-lg font-semibold hover:from-purple-700 hover:to-pink-700 transition-all disabled:opacity-50"
+                className="w-full bg-slate-900 text-white py-3 rounded-lg font-semibold hover:bg-slate-800 transition-all disabled:opacity-50"
               >
                 {loading ? 'Distributing...' : '🎲 Distribute Chits'}
               </button>
@@ -351,7 +419,7 @@ export default function GameRoom({ gameToken }: GameRoomProps) {
                       <span className="font-semibold">
                         {index + 1}. {player.name}
                       </span>
-                      <span className="text-lg font-bold text-purple-600">{player.score}</span>
+                      <span className="text-lg font-bold text-slate-900">{player.score}</span>
                     </div>
                   ))}
               </div>
@@ -361,7 +429,7 @@ export default function GameRoom({ gameToken }: GameRoomProps) {
               <button
                 onClick={handleDistributeChits}
                 disabled={loading}
-                className="w-full bg-gradient-to-r from-purple-600 to-pink-600 text-white py-3 rounded-lg font-semibold hover:from-purple-700 hover:to-pink-700 transition-all disabled:opacity-50"
+                className="w-full bg-slate-900 text-white py-3 rounded-lg font-semibold hover:bg-slate-800 transition-all disabled:opacity-50"
               >
                 {loading ? 'Distributing...' : '🎲 Distribute Chits'}
               </button>
@@ -374,11 +442,36 @@ export default function GameRoom({ gameToken }: GameRoomProps) {
           </div>
         )}
 
-        {/* Animating Chits */}
-        {animating && (
-          <div className="bg-white rounded-2xl shadow-2xl p-12 mb-4 text-center">
-            <div className="animate-bounce text-6xl mb-4">🎴</div>
-            <p className="text-xl font-bold text-gray-800">Distributing chits...</p>
+        {/* Animating Chits Distribution - Full Screen Overlay */}
+        {(animating || gameState.gameStatus === 'DISTRIBUTING') && (
+          <div className="fixed inset-0 bg-black bg-opacity-75 z-50 flex items-center justify-center backdrop-blur-sm">
+            <div className="bg-white rounded-3xl shadow-2xl p-12 max-w-md mx-4 text-center transform scale-100 animate-pulse">
+              <div className="relative">
+                {/* Spinning cards animation */}
+                <div className="flex justify-center gap-4 mb-6">
+                  <div className="text-6xl animate-spin">🎴</div>
+                  <div className="text-6xl animate-bounce">🃏</div>
+                  <div className="text-6xl animate-spin" style={{ animationDirection: 'reverse' }}>🎴</div>
+                </div>
+                
+                {/* Progress bar */}
+                <div className="w-full bg-slate-200 rounded-full h-3 mb-6 overflow-hidden">
+                  <div 
+                    className="bg-slate-900 h-full rounded-full animate-progress"
+                    style={{
+                      animation: 'progress 2.5s ease-in-out forwards'
+                    }}
+                  />
+                </div>
+                
+                <h2 className="text-3xl font-bold text-slate-900 mb-3">
+                  🎲 Distributing Chits...
+                </h2>
+                <p className="text-slate-600 text-lg">
+                  Get ready to see your character!
+                </p>
+              </div>
+            </div>
           </div>
         )}
 
@@ -448,7 +541,7 @@ export default function GameRoom({ gameToken }: GameRoomProps) {
                   <button
                     onClick={handleMantriGuess}
                     disabled={loading || !selectedPlayer}
-                    className="w-full bg-gradient-to-r from-blue-600 to-purple-600 text-white py-3 rounded-lg font-semibold hover:from-blue-700 hover:to-purple-700 transition-all disabled:opacity-50"
+                    className="w-full bg-slate-900 text-white py-3 rounded-lg font-semibold hover:bg-slate-800 transition-all disabled:opacity-50"
                   >
                     {loading ? 'Submitting...' : 'Submit Guess'}
                   </button>
@@ -483,18 +576,18 @@ export default function GameRoom({ gameToken }: GameRoomProps) {
               {currentRoundResult.players.map((player) => (
                 <div
                   key={player.id}
-                  className={`${characterColors[player.character]} p-4 rounded-lg text-white text-center`}
+                  className={`${characterColors[player.character]} p-4 rounded-xl border-2 text-center`}
                 >
                   <div className="text-3xl mb-2">{characterEmojis[player.character]}</div>
                   <p className="font-semibold">{player.name}</p>
-                  <p className="text-sm">{player.character}</p>
+                  <p className="text-sm font-medium">{player.character}</p>
                   <p className="text-xl font-bold mt-2">+{player.pointsEarned}</p>
                 </div>
               ))}
             </div>
 
-            <div className="bg-gray-50 p-4 rounded-lg mb-6">
-              <h3 className="font-bold text-gray-800 mb-2">Current Scores:</h3>
+            <div className="bg-slate-50 p-4 rounded-xl mb-6 border border-slate-200">
+              <h3 className="font-bold text-slate-900 mb-2">Current Scores:</h3>
               <div className="space-y-2">
                 {gameState.players
                   .sort((a, b) => b.score - a.score)
@@ -503,7 +596,7 @@ export default function GameRoom({ gameToken }: GameRoomProps) {
                       <span className="font-semibold">
                         {index + 1}. {player.name}
                       </span>
-                      <span className="text-lg font-bold text-purple-600">{player.score}</span>
+                      <span className="text-lg font-bold text-slate-900">{player.score}</span>
                     </div>
                   ))}
               </div>
@@ -513,7 +606,7 @@ export default function GameRoom({ gameToken }: GameRoomProps) {
               <button
                 onClick={handleNextRound}
                 disabled={loading}
-                className="w-full bg-gradient-to-r from-green-600 to-teal-600 text-white py-3 rounded-lg font-semibold hover:from-green-700 hover:to-teal-700 transition-all disabled:opacity-50"
+                className="w-full bg-emerald-600 text-white py-3 rounded-lg font-semibold hover:bg-emerald-700 transition-all disabled:opacity-50"
               >
                 {loading ? 'Loading...' : gameState.currentRound >= gameState.maxRounds ? 'View Final Results' : 'Start Next Round'}
               </button>
@@ -531,17 +624,68 @@ export default function GameRoom({ gameToken }: GameRoomProps) {
           <div className="bg-white rounded-2xl shadow-2xl p-6">
             <h2 className="text-3xl font-bold text-gray-800 mb-6 text-center">🏆 Game Over!</h2>
             
+            {/* Hidden card for image generation */}
+            <div 
+              ref={resultsCardRef}
+              className="absolute -left-[9999px] w-[600px] bg-white p-8 rounded-2xl"
+              style={{ fontFamily: 'system-ui, -apple-system, sans-serif' }}
+            >
+              <div className="text-center mb-6">
+                <div className="text-6xl mb-3">👑</div>
+                <h1 className="text-4xl font-bold text-slate-900 mb-2">RMCS Game</h1>
+                <p className="text-lg text-slate-600">Final Results</p>
+              </div>
+              
+              <div className="bg-slate-100 rounded-xl p-6 mb-6">
+                <div className="text-center">
+                  <div className="text-5xl mb-2">🥇</div>
+                  <p className="text-2xl font-bold text-slate-900">
+                    {gameState.players.sort((a, b) => b.score - a.score)[0]?.name}
+                  </p>
+                  <p className="text-4xl font-bold text-amber-600 mt-2">
+                    {gameState.players.sort((a, b) => b.score - a.score)[0]?.score} pts
+                  </p>
+                </div>
+              </div>
+              
+              <div className="space-y-3 mb-6">
+                {gameState.players
+                  .sort((a, b) => b.score - a.score)
+                  .slice(1)
+                  .map((player, index) => (
+                    <div
+                      key={player.id}
+                      className="flex justify-between items-center p-4 bg-slate-50 rounded-xl"
+                    >
+                      <div className="flex items-center gap-3">
+                        <span className="text-2xl">
+                          {index === 0 ? '🥈' : index === 1 ? '🥉' : `${index + 2}.`}
+                        </span>
+                        <span className="text-xl font-semibold text-slate-900">{player.name}</span>
+                      </div>
+                      <span className="text-2xl font-bold text-slate-900">{player.score}</span>
+                    </div>
+                  ))}
+              </div>
+              
+              <div className="text-center pt-4 border-t-2 border-slate-200">
+                <p className="text-slate-600 text-sm">Played {gameState.maxRounds} rounds</p>
+                <p className="text-slate-900 font-bold mt-2 text-lg">Game Code: {gameToken}</p>
+              </div>
+            </div>
+            
+            {/* Visible leaderboard */}
             <div className="space-y-4 mb-6">
               {gameState.players
                 .sort((a, b) => b.score - a.score)
                 .map((player, index) => (
                   <div
                     key={player.id}
-                    className={`p-4 rounded-lg flex justify-between items-center ${
-                      index === 0 ? 'bg-gradient-to-r from-yellow-400 to-yellow-600 text-white' :
-                      index === 1 ? 'bg-gradient-to-r from-gray-300 to-gray-400' :
-                      index === 2 ? 'bg-gradient-to-r from-orange-300 to-orange-400' :
-                      'bg-gray-100'
+                    className={`p-4 rounded-xl border-2 flex justify-between items-center ${
+                      index === 0 ? 'bg-amber-50 border-amber-300 text-amber-900' :
+                      index === 1 ? 'bg-slate-100 border-slate-300 text-slate-900' :
+                      index === 2 ? 'bg-orange-50 border-orange-300 text-orange-900' :
+                      'bg-white border-slate-200 text-slate-900'
                     }`}
                   >
                     <div className="flex items-center gap-4">
@@ -555,9 +699,53 @@ export default function GameRoom({ gameToken }: GameRoomProps) {
                 ))}
             </div>
 
+            {/* Share Final Results */}
+            <div className="mb-6 space-y-3">
+              {/* Share as Image */}
+              <button
+                onClick={handleShareImage}
+                disabled={loading}
+                className="w-full bg-slate-900 text-white py-4 px-6 rounded-xl font-semibold hover:bg-slate-800 transition-all flex items-center justify-center gap-2 disabled:opacity-50"
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                </svg>
+                {loading ? 'Generating...' : '📸 Share as Image'}
+              </button>
+              
+              {/* Share on WhatsApp (Text) */}
+              <button
+                onClick={() => {
+                  const sortedPlayers = [...gameState.players].sort((a, b) => b.score - a.score);
+                  const winner = sortedPlayers[0];
+                  const scoreList = sortedPlayers
+                    .map((p, i) => {
+                      const medal = i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : '  ';
+                      return `${medal} ${p.name}: ${p.score} pts`;
+                    })
+                    .join('\n');
+                  
+                  const message = encodeURIComponent(
+                    `🏆 RMCS Game - Final Results!\n\n` +
+                    `👑 Winner: ${winner.name} with ${winner.score} points!\n\n` +
+                    `📊 Final Standings (${gameState.maxRounds} rounds):\n${scoreList}\n\n` +
+                    `🎮 Join us for the next game!\n` +
+                    `Game Code: ${gameToken}`
+                  );
+                  window.open(`https://wa.me/?text=${message}`, '_blank');
+                }}
+                className="w-full bg-emerald-600 text-white py-3 px-6 rounded-xl font-semibold hover:bg-emerald-700 transition-all flex items-center justify-center gap-2"
+              >
+                <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
+                  <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.890-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413Z"/>
+                </svg>
+                📤 Share on WhatsApp
+              </button>
+            </div>
+
             <button
               onClick={() => router.push('/')}
-              className="w-full bg-gradient-to-r from-purple-600 to-pink-600 text-white py-3 rounded-lg font-semibold hover:from-purple-700 hover:to-pink-700 transition-all"
+              className="w-full bg-slate-900 text-white py-3 rounded-lg font-semibold hover:bg-slate-800 transition-all"
             >
               Back to Home
             </button>

@@ -51,7 +51,7 @@ export async function POST(request: NextRequest) {
     // Broadcast initial distribution
     await broadcastGameUpdate(gameToken.toUpperCase(), game);
 
-    // Automatically move to KING_REVEALED after a short delay
+    // Automatically move to KING_REVEALED after animation completes (2.5 seconds)
     setTimeout(async () => {
       const updatedGame = await getGame(gameToken.toUpperCase());
       if (updatedGame) {
@@ -60,7 +60,7 @@ export async function POST(request: NextRequest) {
         // Broadcast status change
         await broadcastGameUpdate(gameToken.toUpperCase(), updatedGame);
       }
-    }, 2000);
+    }, 2500); // Match the frontend animation duration
 
     return NextResponse.json({
       success: true,

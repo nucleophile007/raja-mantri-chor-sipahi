@@ -4,9 +4,24 @@ export function generateGameToken(): string {
   return Math.random().toString(36).substring(2, 8).toUpperCase();
 }
 
+/**
+ * Fisher-Yates shuffle algorithm for true random distribution
+ * More reliable than Array.sort() with random comparator
+ */
+function fisherYatesShuffle<T>(array: T[]): T[] {
+  const shuffled = [...array];
+  for (let i = shuffled.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+  }
+  return shuffled;
+}
+
 export function shuffleAndAssignCharacters(players: Player[]): Player[] {
   const characters: Character[] = ['RAJA', 'MANTRI', 'CHOR', 'SIPAHI'];
-  const shuffled = [...characters].sort(() => Math.random() - 0.5);
+  
+  // Use Fisher-Yates shuffle for truly random distribution
+  const shuffled = fisherYatesShuffle(characters);
   
   return players.map((player, index) => ({
     ...player,
