@@ -138,6 +138,31 @@ export default function GameRoom({ gameToken }: GameRoomProps) {
     enabled: !!playerId,
   });
 
+  // Auto-transition from DISTRIBUTING to KING_REVEALED after animation
+  useEffect(() => {
+    if (gameState?.gameStatus === 'DISTRIBUTING' && isHost) {
+      const timer = setTimeout(async () => {
+        try {
+          // Update game status to KING_REVEALED
+          const response = await fetch('/api/game/reveal-king', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ gameToken, playerId })
+          });
+          
+          const data = await response.json();
+          if (data.success) {
+            console.log('✅ Auto-transitioned to KING_REVEALED');
+          }
+        } catch (err) {
+          console.error('Failed to auto-transition:', err);
+        }
+      }, 2600); // Slightly longer than animation to ensure smooth transition
+
+      return () => clearTimeout(timer);
+    }
+  }, [gameState?.gameStatus, gameToken, playerId, isHost]);
+
   // Memoized fetch function
   const fetchGameState = useCallback(async () => {
     try {

@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getGame, updateGame } from '@/lib/storage';
-import { shuffleAndAssignCharacters } from '@/lib/gameLogic';
 import { broadcastGameUpdate } from '@/lib/pusher';
 
 export async function POST(request: NextRequest) {
@@ -27,28 +26,24 @@ export async function POST(request: NextRequest) {
     const player = game.players.find(p => p.id === playerId);
     if (!player?.isHost) {
       return NextResponse.json(
-        { error: 'Only host can distribute characters' },
+        { error: 'Only host can reveal king' },
         { status: 403 }
       );
     }
 
-    if (game.players.length !== 4) {
-      return NextResponse.json(
-        { error: 'Need exactly 4 players to start' },
-        { status: 400 }
-      );
+    // Only transition if currently DISTRIBUTING
+    if (game.gameStatus !== 'DISTRIBUTING') {
+      return NextResponse.json({
+        success: true,
+        gameState: game
+      });
     }
 
-    // Shuffle and assign characters
-    const playersWithCharacters = shuffleAndAssignCharacters(game.players);
-    
-    game.players = playersWithCharacters;
-    game.currentRound += 1;
-    game.gameStatus = 'DISTRIBUTING';
-
+    // Update status to KING_REVEALED
+    game.gameStatus = 'KING_REVEALED';
     await updateGame(gameToken.toUpperCase(), game);
 
-    // Broadcast distribution state
+    // Broadcast the update
     await broadcastGameUpdate(gameToken.toUpperCase(), game);
 
     return NextResponse.json({
@@ -56,9 +51,9 @@ export async function POST(request: NextRequest) {
       gameState: game
     });
   } catch (error) {
-    console.error('Error distributing characters:', error);
+    console.error('Error revealing king:', error);
     return NextResponse.json(
-      { error: 'Failed to distribute characters' },
+      { error: 'Failed to reveal king' },
       { status: 500 }
     );
   }
