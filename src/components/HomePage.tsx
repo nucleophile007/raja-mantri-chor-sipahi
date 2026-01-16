@@ -12,7 +12,7 @@ export default function HomePage() {
   const [maxRounds, setMaxRounds] = useState(5);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
-  const [isPending, startTransition] = useTransition();
+  const [, startTransition] = useTransition();
   const router = useRouter();
 
   const handleCreateGame = useCallback(async () => {

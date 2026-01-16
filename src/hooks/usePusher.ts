@@ -21,7 +21,6 @@ export function usePusher({ gameToken, onStateUpdate, enabled = true }: UsePushe
   
   // Memoize callback to prevent unnecessary re-subscriptions
   const handleStateUpdate = useCallback((newState: GameState) => {
-    console.log('📡 Received real-time update from Pusher:', newState.gameStatus);
     onStateUpdate(newState);
   }, [onStateUpdate]);
 

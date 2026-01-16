@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState, useCallback, useMemo, useTransition, useRef } from 'react';
-import { GameState, Player, Character } from '@/types/game';
+import { GameState, Character } from '@/types/game';
 import { useRouter } from 'next/navigation';
 import { usePusher } from '@/hooks/usePusher';
 import html2canvas from 'html2canvas';
@@ -31,7 +31,7 @@ export default function GameRoom({ gameToken }: GameRoomProps) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [animating, setAnimating] = useState(false);
-  const [isPending, startTransition] = useTransition();
+  const [, startTransition] = useTransition();
   const router = useRouter();
   const resultsCardRef = useRef<HTMLDivElement>(null);
 
@@ -113,12 +113,13 @@ export default function GameRoom({ gameToken }: GameRoomProps) {
 
   // Memoized callback for Pusher updates with animation handling
   const handlePusherUpdate = useCallback((newState: GameState) => {
-    console.log('📡 Pusher update received:', newState.gameStatus);
-    
     // Auto-trigger animation when status changes to DISTRIBUTING
     if (newState.gameStatus === 'DISTRIBUTING' && gameState?.gameStatus !== 'DISTRIBUTING') {
       setAnimating(true);
-      // Animation will last 2.5 seconds, matching the server timeout
+      // Auto-clear animation after 2.6 seconds
+      setTimeout(() => {
+        setAnimating(false);
+      }, 2600);
     }
     
     // Stop animation when status changes away from DISTRIBUTING
@@ -152,7 +153,7 @@ export default function GameRoom({ gameToken }: GameRoomProps) {
           
           const data = await response.json();
           if (data.success) {
-            console.log('✅ Auto-transitioned to KING_REVEALED');
+            // Successfully transitioned
           }
         } catch (err) {
           console.error('Failed to auto-transition:', err);
@@ -190,7 +191,6 @@ export default function GameRoom({ gameToken }: GameRoomProps) {
   const handleDistributeChits = useCallback(async () => {
     setLoading(true);
     setError('');
-    setAnimating(true);
 
     try {
       const response = await fetch('/api/game/distribute', {
@@ -201,21 +201,12 @@ export default function GameRoom({ gameToken }: GameRoomProps) {
 
       const data = await response.json();
 
-      if (data.success) {
-        // Optimistically update local state
-        startTransition(() => {
-          setGameState(data.gameState);
-        });
-        setTimeout(() => {
-          setAnimating(false);
-        }, 2500);
-      } else {
+      if (!data.success) {
         setError(data.error || 'Failed to distribute');
-        setAnimating(false);
       }
+      // Pusher will handle state update automatically
     } catch (err) {
       setError('Network error');
-      setAnimating(false);
     } finally {
       setLoading(false);
     }
@@ -244,11 +235,8 @@ export default function GameRoom({ gameToken }: GameRoomProps) {
       const data = await response.json();
 
       if (data.success) {
-        // Optimistically update local state
-        startTransition(() => {
-          setGameState(data.gameState);
-        });
         setSelectedPlayer(null);
+        // Pusher will handle state update automatically
       } else {
         setError(data.error || 'Failed to submit guess');
       }
@@ -272,14 +260,10 @@ export default function GameRoom({ gameToken }: GameRoomProps) {
 
       const data = await response.json();
 
-      if (data.success) {
-        // Optimistically update local state
-        startTransition(() => {
-          setGameState(data.gameState);
-        });
-      } else {
+      if (!data.success) {
         setError(data.error || 'Failed to start next round');
       }
+      // Pusher will handle state update automatically
     } catch (err) {
       setError('Network error');
     } finally {
@@ -468,7 +452,7 @@ export default function GameRoom({ gameToken }: GameRoomProps) {
         )}
 
         {/* Animating Chits Distribution - Full Screen Overlay */}
-        {(animating || gameState.gameStatus === 'DISTRIBUTING') && (
+        {animating && (
           <div className="fixed inset-0 bg-black bg-opacity-75 z-50 flex items-center justify-center backdrop-blur-sm">
             <div className="bg-white rounded-3xl shadow-2xl p-12 max-w-md mx-4 text-center transform scale-100 animate-pulse">
               <div className="relative">
