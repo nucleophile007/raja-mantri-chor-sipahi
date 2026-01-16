@@ -6,6 +6,8 @@ export interface Player {
   character: Character | null;
   score: number;
   isHost: boolean;
+  isActive: boolean;
+  lastSeen: number; // Timestamp
 }
 
 export interface GameState {

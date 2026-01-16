@@ -39,6 +39,15 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Check if all players are active
+    const inactivePlayers = game.players.filter(p => !p.isActive);
+    if (inactivePlayers.length > 0) {
+      return NextResponse.json(
+        { error: `Cannot start: ${inactivePlayers.map(p => p.name).join(', ')} ${inactivePlayers.length === 1 ? 'is' : 'are'} not connected` },
+        { status: 400 }
+      );
+    }
+
     // Shuffle and assign characters
     const playersWithCharacters = shuffleAndAssignCharacters(game.players);
     

@@ -46,14 +46,28 @@ export default function GameRoom({ gameToken }: GameRoomProps) {
       setLoading(true);
       setError('');
       
+      const element = resultsCardRef.current;
+      
+      // Temporarily make element visible for capture
+      const originalVisibility = element.style.visibility;
+      const originalZIndex = element.style.zIndex;
+      element.style.visibility = 'visible';
+      element.style.zIndex = '9999';
+      
       // Generate canvas from the results card
-      const canvas = await html2canvas(resultsCardRef.current, {
+      const canvas = await html2canvas(element, {
         backgroundColor: '#f8fafc',
         scale: 2, // Higher quality
         logging: false,
         useCORS: true,
-        allowTaint: true
+        allowTaint: true,
+        windowWidth: 600,
+        windowHeight: element.scrollHeight
       });
+      
+      // Restore original visibility
+      element.style.visibility = originalVisibility;
+      element.style.zIndex = originalZIndex;
 
       // Convert to blob
       canvas.toBlob(async (blob) => {
@@ -109,7 +123,7 @@ export default function GameRoom({ gameToken }: GameRoomProps) {
   const isMantri = useMemo(() => currentPlayer?.character === 'MANTRI', [currentPlayer?.character]);
   const isHost = useMemo(() => currentPlayer?.isHost || false, [currentPlayer?.isHost]);
 
-  // Initialize playerId from localStorage (runs once on mount)
+  // Initialize playerId from localStorage and attempt reconnection
   useEffect(() => {
     const storedPlayerId = localStorage.getItem('playerId');
     const storedGameToken = localStorage.getItem('gameToken');
@@ -120,10 +134,94 @@ export default function GameRoom({ gameToken }: GameRoomProps) {
     }
 
     setPlayerId(storedPlayerId);
+
+    // Attempt to reconnect to the game
+    const reconnect = async () => {
+      try {
+        const response = await fetch('/api/game/reconnect', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ 
+            gameToken: storedGameToken, 
+            playerId: storedPlayerId 
+          })
+        });
+
+        const data = await response.json();
+        
+        if (data.success) {
+          console.log('✅ Reconnected to game');
+        }
+      } catch (err) {
+        console.error('Failed to reconnect:', err);
+      }
+    };
+
+    reconnect();
   }, [gameToken, router]);
+
+  // Send heartbeat every 30 seconds to keep player active
+  useEffect(() => {
+    if (!playerId) return;
+
+    let intervalId: NodeJS.Timeout;
+
+    const sendHeartbeat = async () => {
+      try {
+        const response = await fetch('/api/game/heartbeat', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ gameToken, playerId })
+        });
+        
+        const data = await response.json();
+        
+        // If game was deleted or player removed, stop sending heartbeats
+        if (data.gameDeleted || data.playerRemoved) {
+          clearInterval(intervalId);
+        }
+      } catch (err) {
+        console.error('Heartbeat failed:', err);
+      }
+    };
+
+    // Send initial heartbeat
+    sendHeartbeat();
+
+    // Send heartbeat every 30 seconds
+    intervalId = setInterval(sendHeartbeat, 30000);
+
+    return () => clearInterval(intervalId);
+  }, [gameToken, playerId]);
 
   // Memoized callback for Pusher updates with animation handling
   const handlePusherUpdate = useCallback((newState: GameState) => {
+    // Check if current player was removed from the game (another player left and we got the update)
+    const currentPlayerStillInGame = newState.players.find(p => p.id === playerId);
+    
+    // If game ended by host or current player not in game anymore
+    if (newState.gameStatus === 'GAME_END' || (playerId && !currentPlayerStillInGame)) {
+      let message = 'The game has ended.';
+      
+      if (newState.players.length === 0) {
+        // Game was deleted
+        if (gameState && gameState.currentRound > 0) {
+          message = 'A player left mid-game. The game has been terminated to prevent score inconsistencies.';
+        } else {
+          message = 'The host has ended the game.';
+        }
+      } else if (!currentPlayerStillInGame && playerId) {
+        // Current player was removed (shouldn't happen in normal flow, but safety check)
+        message = 'You have been removed from the game.';
+      }
+      
+      alert(message + ' Returning to home page.');
+      localStorage.removeItem('playerId');
+      localStorage.removeItem('gameToken');
+      router.push('/');
+      return;
+    }
+
     // Auto-trigger animation when status changes to DISTRIBUTING
     if (newState.gameStatus === 'DISTRIBUTING' && gameState?.gameStatus !== 'DISTRIBUTING') {
       setAnimating(true);
@@ -141,7 +239,7 @@ export default function GameRoom({ gameToken }: GameRoomProps) {
     startTransition(() => {
       setGameState(newState);
     });
-  }, [gameState?.gameStatus]);
+  }, [gameState?.gameStatus, gameState?.currentRound, playerId, router]);
 
   // Subscribe to real-time updates via Pusher
   usePusher({
@@ -200,6 +298,8 @@ export default function GameRoom({ gameToken }: GameRoomProps) {
 
   // Memoized action handlers
   const handleDistributeChits = useCallback(async () => {
+    if (loading) return; // Prevent double-click
+    
     setLoading(true);
     setError('');
 
@@ -221,13 +321,15 @@ export default function GameRoom({ gameToken }: GameRoomProps) {
     } finally {
       setLoading(false);
     }
-  }, [gameToken, playerId]);
+  }, [gameToken, playerId, loading]);
 
   const handleMantriGuess = useCallback(async () => {
     if (!selectedPlayer) {
       setError('Please select a player');
       return;
     }
+
+    if (loading) return; // Prevent double-click
 
     setLoading(true);
     setError('');
@@ -256,9 +358,11 @@ export default function GameRoom({ gameToken }: GameRoomProps) {
     } finally {
       setLoading(false);
     }
-  }, [gameToken, playerId, selectedPlayer]);
+  }, [gameToken, playerId, selectedPlayer, loading]);
 
   const handleNextRound = useCallback(async () => {
+    if (loading) return; // Prevent double-click
+    
     setLoading(true);
     setError('');
 
@@ -280,7 +384,53 @@ export default function GameRoom({ gameToken }: GameRoomProps) {
     } finally {
       setLoading(false);
     }
-  }, [gameToken, playerId]);
+  }, [gameToken, playerId, loading]);
+
+  const handleLeaveGame = useCallback(async () => {
+    if (loading) return; // Prevent double-click
+    
+    // Different warning based on game state
+    let confirmMessage = 'Are you sure you want to leave the game?';
+    
+    if (isHost) {
+      confirmMessage = '⚠️ WARNING: You are the HOST. If you leave, the ENTIRE game will be terminated for all players. Are you sure?';
+    } else if (gameState && gameState.currentRound > 0) {
+      confirmMessage = '⚠️ WARNING: Leaving mid-game will TERMINATE the game for all players to prevent score inconsistencies. Are you sure?';
+    } else {
+      confirmMessage = 'Are you sure you want to leave the game? You can rejoin if the game hasn\'t started yet.';
+    }
+    
+    if (!confirm(confirmMessage)) {
+      return;
+    }
+
+    setLoading(true);
+
+    try {
+      const response = await fetch('/api/game/leave', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ gameToken, playerId })
+      });
+
+      const data = await response.json();
+
+      if (data.success) {
+        // Clear localStorage
+        localStorage.removeItem('playerId');
+        localStorage.removeItem('gameToken');
+        
+        // Redirect to home
+        router.push('/');
+      } else {
+        setError(data.error || 'Failed to leave game');
+      }
+    } catch (err) {
+      setError('Network error');
+    } finally {
+      setLoading(false);
+    }
+  }, [gameToken, playerId, router, isHost, gameState, loading]);
 
   // Memoized derived value
   const currentRoundResult = useMemo(
@@ -307,9 +457,19 @@ export default function GameRoom({ gameToken }: GameRoomProps) {
               <h1 className="text-2xl md:text-3xl font-bold text-gray-800">RMCS Game</h1>
               <p className="text-sm text-gray-600">Round {gameState.currentRound} of {gameState.maxRounds}</p>
             </div>
-            <div className="bg-purple-100 px-6 py-3 rounded-lg">
-              <p className="text-xs text-gray-600">Game Token</p>
-              <p className="text-2xl font-bold text-slate-900">{gameToken}</p>
+            <div className="flex items-center gap-3">
+              <div className="bg-purple-100 px-6 py-3 rounded-lg">
+                <p className="text-xs text-gray-600">Game Token</p>
+                <p className="text-2xl font-bold text-slate-900">{gameToken}</p>
+              </div>
+              <button
+                onClick={handleLeaveGame}
+                disabled={loading}
+                className="px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed text-sm font-semibold"
+                title="Leave Game"
+              >
+                🚪 Leave
+              </button>
             </div>
           </div>
         </div>
@@ -390,12 +550,19 @@ export default function GameRoom({ gameToken }: GameRoomProps) {
                   <div
                     key={index}
                     className={`p-4 rounded-lg text-center ${
-                      player ? 'bg-green-100 border-2 border-green-500' : 'bg-gray-100 border-2 border-dashed border-gray-300'
+                      player 
+                        ? player.isActive 
+                          ? 'bg-green-100 border-2 border-green-500' 
+                          : 'bg-gray-100 border-2 border-gray-400 opacity-60'
+                        : 'bg-gray-100 border-2 border-dashed border-gray-300'
                     }`}
                   >
                     {player ? (
                       <>
-                        <p className="font-semibold text-gray-800">{player.name}</p>
+                        <p className="font-semibold text-gray-800">
+                          {player.name}
+                          {!player.isActive && ' (Disconnected)'}
+                        </p>
                         {player.isHost && <span className="text-xs text-slate-900">👑 Host</span>}
                       </>
                     ) : (
@@ -436,9 +603,15 @@ export default function GameRoom({ gameToken }: GameRoomProps) {
                 {gameState.players
                   .sort((a, b) => b.score - a.score)
                   .map((player, index) => (
-                    <div key={player.id} className="flex justify-between items-center bg-white p-3 rounded-lg">
+                    <div 
+                      key={player.id} 
+                      className={`flex justify-between items-center bg-white p-3 rounded-lg ${
+                        !player.isActive ? 'opacity-50 border-2 border-red-300' : ''
+                      }`}
+                    >
                       <span className="font-semibold">
                         {index + 1}. {player.name}
+                        {!player.isActive && ' ⚠️ Disconnected'}
                       </span>
                       <span className="text-lg font-bold text-slate-900">{player.score}</span>
                     </div>
@@ -648,8 +821,16 @@ export default function GameRoom({ gameToken }: GameRoomProps) {
             {/* Hidden card for image generation */}
             <div 
               ref={resultsCardRef}
-              className="fixed top-0 left-0 w-[600px] bg-white p-8 rounded-2xl opacity-0 pointer-events-none -z-50"
-              style={{ fontFamily: 'system-ui, -apple-system, sans-serif' }}
+              className="absolute w-[600px] bg-white p-8 rounded-2xl"
+              style={{ 
+                fontFamily: 'system-ui, -apple-system, sans-serif',
+                position: 'absolute',
+                left: '0',
+                top: '0',
+                visibility: 'hidden',
+                pointerEvents: 'none',
+                zIndex: -1
+              }}
             >
               <div className="text-center mb-6">
                 <div className="text-6xl mb-3">👑</div>

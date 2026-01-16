@@ -45,6 +45,15 @@ export async function POST(request: NextRequest) {
       });
     }
 
+    // Check if all players are still active
+    const inactivePlayers = game.players.filter(p => !p.isActive);
+    if (inactivePlayers.length > 0) {
+      return NextResponse.json(
+        { error: `Cannot proceed: ${inactivePlayers.map(p => p.name).join(', ')} ${inactivePlayers.length === 1 ? 'has' : 'have'} left the game` },
+        { status: 400 }
+      );
+    }
+
     // Reset characters for next round
     game.players = resetCharacters(game.players);
     game.gameStatus = 'WAITING';

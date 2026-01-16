@@ -254,7 +254,7 @@ export default function HomePage() {
                   value={playerName}
                   onChange={(e) => setPlayerName(e.target.value)}
                   placeholder="Enter your name"
-                  className="w-full px-4 py-3 border-2 border-slate-200 rounded-xl focus:border-slate-900 focus:outline-none transition-colors"
+                  className="w-full px-4 py-3 border-2 border-slate-200 rounded-xl focus:border-slate-900 focus:outline-none transition-colors text-slate-900 placeholder:text-slate-400"
                   disabled={loading}
                   onKeyPress={(e) => e.key === 'Enter' && handleCreateGame()}
                 />
@@ -357,7 +357,7 @@ export default function HomePage() {
                 value={playerName}
                 onChange={(e) => setPlayerName(e.target.value)}
                 placeholder="Enter your name"
-                className="w-full px-4 py-3 border-2 border-slate-200 rounded-xl focus:border-slate-900 focus:outline-none transition-colors"
+                className="w-full px-4 py-3 border-2 border-slate-200 rounded-xl focus:border-slate-900 focus:outline-none transition-colors text-slate-900 placeholder:text-slate-400"
                 disabled={loading}
                 autoFocus={!!searchParams.get('code')}
               />
@@ -372,7 +372,7 @@ export default function HomePage() {
                 value={gameToken}
                 onChange={(e) => setGameToken(e.target.value.toUpperCase())}
                 placeholder="Enter 6-digit code"
-                className="w-full px-4 py-3 border-2 border-slate-200 rounded-xl focus:border-slate-900 focus:outline-none transition-colors uppercase text-center text-2xl font-bold tracking-widest"
+                className="w-full px-4 py-3 border-2 border-slate-200 rounded-xl focus:border-slate-900 focus:outline-none transition-colors uppercase text-center text-2xl font-bold tracking-widest text-slate-900 placeholder:text-slate-400"
                 disabled={loading}
                 maxLength={6}
                 onKeyPress={(e) => e.key === 'Enter' && handleJoinGame()}

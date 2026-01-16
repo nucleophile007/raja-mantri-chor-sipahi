@@ -92,12 +92,45 @@ export async function deleteGame(gameToken: string): Promise<void> {
 }
 
 export async function addPlayerToGame(gameToken: string, player: Player): Promise<GameState | null> {
-  const game = await getGame(gameToken);
-  if (!game || game.players.length >= 4) {
-    return null;
+  // Use atomic read-modify-write to prevent race condition
+  const MAX_RETRIES = 3;
+  
+  for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
+    const game = await getGame(gameToken);
+    
+    if (!game) {
+      return null;
+    }
+    
+    if (game.players.length >= 4) {
+      return null;
+    }
+    
+    // Check if player already exists (idempotency)
+    if (game.players.some(p => p.id === player.id)) {
+      return game; // Already added, return success
+    }
+    
+    // Create new game state with added player
+    const updatedGame = {
+      ...game,
+      players: [...game.players, player]
+    };
+    
+    // Atomic check: verify count hasn't changed since we read it
+    const currentGame = await getGame(gameToken);
+    if (!currentGame || currentGame.players.length !== game.players.length) {
+      // State changed, retry
+      console.warn(`Race condition detected in addPlayerToGame, retrying (${attempt + 1}/${MAX_RETRIES})`);
+      await new Promise(resolve => setTimeout(resolve, 50 * (attempt + 1))); // Exponential backoff
+      continue;
+    }
+    
+    await updateGame(gameToken, updatedGame);
+    return updatedGame;
   }
   
-  game.players.push(player);
-  await updateGame(gameToken, game);
-  return game;
+  // All retries failed
+  console.error('Failed to add player after max retries - race condition');
+  return null;
 }

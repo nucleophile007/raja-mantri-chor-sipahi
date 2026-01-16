@@ -42,7 +42,9 @@ export async function POST(request: NextRequest) {
       name: playerName.trim(),
       character: null,
       score: 0,
-      isHost: false
+      isHost: false,
+      isActive: true,
+      lastSeen: Date.now()
     };
 
     const updatedGame = await addPlayerToGame(gameToken.toUpperCase(), newPlayer);

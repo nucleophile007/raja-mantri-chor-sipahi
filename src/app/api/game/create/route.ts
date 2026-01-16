@@ -30,7 +30,9 @@ export async function POST(request: NextRequest) {
       name: playerName.trim(),
       character: null,
       score: 0,
-      isHost: true
+      isHost: true,
+      isActive: true,
+      lastSeen: Date.now()
     };
 
     const gameState = await createGame(gameToken, hostPlayer, rounds);
