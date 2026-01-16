@@ -10,14 +10,18 @@ function getGameKey(gameToken: string): string {
   return `game:${gameToken}`;
 }
 
-export async function createGame(gameToken: string, hostPlayer: Player): Promise<GameState> {
+export async function createGame(
+  gameToken: string, 
+  hostPlayer: Player, 
+  maxRounds: number = 5
+): Promise<GameState> {
   const gameState: GameState = {
     gameToken,
     players: [hostPlayer],
     currentRound: 0,
     gameStatus: 'WAITING',
     roundHistory: [],
-    maxRounds: 5
+    maxRounds: maxRounds
   };
   
   if (useInMemoryFallback) {

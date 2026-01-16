@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback, useMemo, useTransition } from 'react';
 import { GameState, Player, Character } from '@/types/game';
 import { useRouter } from 'next/navigation';
 import { usePusher } from '@/hooks/usePusher';
@@ -30,22 +30,19 @@ export default function GameRoom({ gameToken }: GameRoomProps) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [animating, setAnimating] = useState(false);
+  const [isPending, startTransition] = useTransition();
   const router = useRouter();
 
-  const currentPlayer = gameState?.players.find(p => p.id === playerId);
-  const isMantri = currentPlayer?.character === 'MANTRI';
-  const isHost = currentPlayer?.isHost || false;
+  // Memoized derived state (computed only when dependencies change)
+  const currentPlayer = useMemo(
+    () => gameState?.players.find(p => p.id === playerId),
+    [gameState?.players, playerId]
+  );
+  
+  const isMantri = useMemo(() => currentPlayer?.character === 'MANTRI', [currentPlayer?.character]);
+  const isHost = useMemo(() => currentPlayer?.isHost || false, [currentPlayer?.isHost]);
 
-  // 🎉 Subscribe to real-time updates via Pusher (NO MORE POLLING!)
-  usePusher({
-    gameToken,
-    onStateUpdate: (newState) => {
-      console.log('📡 Pusher update received:', newState.gameStatus);
-      setGameState(newState);
-    },
-    enabled: !!playerId, // Only subscribe when player is authenticated
-  });
-
+  // Initialize playerId from localStorage (runs once on mount)
   useEffect(() => {
     const storedPlayerId = localStorage.getItem('playerId');
     const storedGameToken = localStorage.getItem('gameToken');
@@ -56,23 +53,48 @@ export default function GameRoom({ gameToken }: GameRoomProps) {
     }
 
     setPlayerId(storedPlayerId);
-    fetchGameState(); // Initial load only
   }, [gameToken, router]);
 
-  const fetchGameState = async () => {
+  // Memoized callback for Pusher updates
+  const handlePusherUpdate = useCallback((newState: GameState) => {
+    console.log('📡 Pusher update received:', newState.gameStatus);
+    startTransition(() => {
+      setGameState(newState);
+    });
+  }, []);
+
+  // Subscribe to real-time updates via Pusher
+  usePusher({
+    gameToken,
+    onStateUpdate: handlePusherUpdate,
+    enabled: !!playerId,
+  });
+
+  // Memoized fetch function
+  const fetchGameState = useCallback(async () => {
     try {
       const response = await fetch(`/api/game/state?gameToken=${gameToken}`);
       const data = await response.json();
 
       if (data.success) {
-        setGameState(data.gameState);
+        startTransition(() => {
+          setGameState(data.gameState);
+        });
       }
     } catch (err) {
       console.error('Error fetching game state:', err);
     }
-  };
+  }, [gameToken]);
 
-  const handleDistributeChits = async () => {
+  // Fetch initial game state when playerId is set
+  useEffect(() => {
+    if (playerId) {
+      fetchGameState();
+    }
+  }, [playerId, fetchGameState]);
+
+  // Memoized action handlers
+  const handleDistributeChits = useCallback(async () => {
     setLoading(true);
     setError('');
     setAnimating(true);
@@ -87,12 +109,12 @@ export default function GameRoom({ gameToken }: GameRoomProps) {
       const data = await response.json();
 
       if (data.success) {
-        // Optimistically update local state immediately
-        setGameState(data.gameState);
+        // Optimistically update local state
+        startTransition(() => {
+          setGameState(data.gameState);
+        });
         setTimeout(() => {
           setAnimating(false);
-          // Fetch again to ensure consistency
-          fetchGameState();
         }, 2500);
       } else {
         setError(data.error || 'Failed to distribute');
@@ -104,9 +126,9 @@ export default function GameRoom({ gameToken }: GameRoomProps) {
     } finally {
       setLoading(false);
     }
-  };
+  }, [gameToken, playerId]);
 
-  const handleMantriGuess = async () => {
+  const handleMantriGuess = useCallback(async () => {
     if (!selectedPlayer) {
       setError('Please select a player');
       return;
@@ -129,10 +151,11 @@ export default function GameRoom({ gameToken }: GameRoomProps) {
       const data = await response.json();
 
       if (data.success) {
-        // Optimistically update local state immediately
-        setGameState(data.gameState);
+        // Optimistically update local state
+        startTransition(() => {
+          setGameState(data.gameState);
+        });
         setSelectedPlayer(null);
-        // No need to poll - we have the latest state
       } else {
         setError(data.error || 'Failed to submit guess');
       }
@@ -141,9 +164,9 @@ export default function GameRoom({ gameToken }: GameRoomProps) {
     } finally {
       setLoading(false);
     }
-  };
+  }, [gameToken, playerId, selectedPlayer]);
 
-  const handleNextRound = async () => {
+  const handleNextRound = useCallback(async () => {
     setLoading(true);
     setError('');
 
@@ -157,9 +180,10 @@ export default function GameRoom({ gameToken }: GameRoomProps) {
       const data = await response.json();
 
       if (data.success) {
-        // Optimistically update local state immediately
-        setGameState(data.gameState);
-        // No need to poll - we have the latest state
+        // Optimistically update local state
+        startTransition(() => {
+          setGameState(data.gameState);
+        });
       } else {
         setError(data.error || 'Failed to start next round');
       }
@@ -168,8 +192,15 @@ export default function GameRoom({ gameToken }: GameRoomProps) {
     } finally {
       setLoading(false);
     }
-  };
+  }, [gameToken, playerId]);
 
+  // Memoized derived value
+  const currentRoundResult = useMemo(
+    () => gameState?.roundHistory[gameState.roundHistory.length - 1],
+    [gameState?.roundHistory]
+  );
+
+  // Early return for loading state
   if (!gameState) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-purple-600 via-pink-500 to-red-500 flex items-center justify-center">
@@ -177,8 +208,6 @@ export default function GameRoom({ gameToken }: GameRoomProps) {
       </div>
     );
   }
-
-  const currentRoundResult = gameState.roundHistory[gameState.roundHistory.length - 1];
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-purple-600 via-pink-500 to-red-500 p-4">
@@ -203,12 +232,68 @@ export default function GameRoom({ gameToken }: GameRoomProps) {
           </div>
         )}
 
+        {/* Share Game Code - Show when waiting for players */}
+        {gameState.gameStatus === 'WAITING' && gameState.currentRound === 0 && gameState.players.length < 4 && (
+          <div className="bg-gradient-to-r from-green-50 to-blue-50 border-2 border-green-300 rounded-2xl shadow-xl p-6 mb-4">
+            <div className="text-center mb-4">
+              <h3 className="text-lg font-bold text-gray-800 mb-2">📱 Share Game Code</h3>
+              <div className="bg-white rounded-xl p-4 mb-4 border-2 border-dashed border-purple-300">
+                <p className="text-sm text-gray-600 mb-2">Game Code:</p>
+                <p className="text-4xl font-bold text-purple-600 tracking-wider mb-3">{gameToken}</p>
+                <p className="text-xs text-gray-500">Share this code with your friends to join</p>
+              </div>
+            </div>
+            <div className="flex flex-col sm:flex-row gap-3">
+              <button
+                onClick={async () => {
+                  try {
+                    await navigator.clipboard.writeText(gameToken);
+                    setError('');
+                    // Show success feedback
+                    const btn = document.activeElement as HTMLButtonElement;
+                    const originalText = btn.textContent;
+                    btn.textContent = '✓ Copied!';
+                    setTimeout(() => {
+                      btn.textContent = originalText;
+                    }, 2000);
+                  } catch (err) {
+                    setError('Failed to copy. Please copy manually: ' + gameToken);
+                  }
+                }}
+                className="flex-1 bg-gradient-to-r from-blue-500 to-blue-600 text-white py-3 px-6 rounded-lg font-semibold hover:from-blue-600 hover:to-blue-700 transition-all flex items-center justify-center gap-2"
+              >
+                📋 Copy Code
+              </button>
+              <button
+                onClick={() => {
+                  const message = encodeURIComponent(
+                    `🎮 Join my RMCS game!\n\n` +
+                    `Game Code: ${gameToken}\n` +
+                    `Link: ${window.location.origin}\n\n` +
+                    `Enter the code to join!`
+                  );
+                  window.open(`https://wa.me/?text=${message}`, '_blank');
+                }}
+                className="flex-1 bg-gradient-to-r from-green-500 to-green-600 text-white py-3 px-6 rounded-lg font-semibold hover:from-green-600 hover:to-green-700 transition-all flex items-center justify-center gap-2"
+              >
+                <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
+                  <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.890-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413Z"/>
+                </svg>
+                Share on WhatsApp
+              </button>
+            </div>
+          </div>
+        )}
+
         {/* Waiting for Players - Initial */}
         {gameState.gameStatus === 'WAITING' && gameState.currentRound === 0 && (
           <div className="bg-white rounded-2xl shadow-2xl p-6 mb-4">
-            <h2 className="text-xl font-bold text-gray-800 mb-4">
+            <h2 className="text-xl font-bold text-gray-800 mb-2">
               Waiting for Players ({gameState.players.length}/4)
             </h2>
+            <p className="text-sm text-gray-600 mb-4">
+              Game will have <span className="font-bold text-purple-600">{gameState.maxRounds}</span> round{gameState.maxRounds !== 1 ? 's' : ''}
+            </p>
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
               {[...Array(4)].map((_, index) => {
                 const player = gameState.players[index];

@@ -1,18 +1,25 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useCallback, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 
 export default function HomePage() {
   const [playerName, setPlayerName] = useState('');
   const [gameToken, setGameToken] = useState('');
+  const [maxRounds, setMaxRounds] = useState(5);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [isPending, startTransition] = useTransition();
   const router = useRouter();
 
-  const handleCreateGame = async () => {
+  const handleCreateGame = useCallback(async () => {
     if (!playerName.trim()) {
       setError('Please enter your name');
+      return;
+    }
+
+    if (maxRounds < 1 || maxRounds > 30) {
+      setError('Number of rounds must be between 1 and 30');
       return;
     }
 
@@ -23,7 +30,10 @@ export default function HomePage() {
       const response = await fetch('/api/game/create', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ playerName: playerName.trim() })
+        body: JSON.stringify({ 
+          playerName: playerName.trim(),
+          maxRounds: maxRounds 
+        })
       });
 
       const data = await response.json();
@@ -31,7 +41,9 @@ export default function HomePage() {
       if (data.success) {
         localStorage.setItem('playerId', data.playerId);
         localStorage.setItem('gameToken', data.gameToken);
-        router.push(`/game/${data.gameToken}`);
+        startTransition(() => {
+          router.push(`/game/${data.gameToken}`);
+        });
       } else {
         setError(data.error || 'Failed to create game');
       }
@@ -40,9 +52,9 @@ export default function HomePage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [playerName, maxRounds, router]);
 
-  const handleJoinGame = async () => {
+  const handleJoinGame = useCallback(async () => {
     if (!playerName.trim()) {
       setError('Please enter your name');
       return;
@@ -71,7 +83,9 @@ export default function HomePage() {
       if (data.success) {
         localStorage.setItem('playerId', data.playerId);
         localStorage.setItem('gameToken', gameToken.trim().toUpperCase());
-        router.push(`/game/${gameToken.trim().toUpperCase()}`);
+        startTransition(() => {
+          router.push(`/game/${gameToken.trim().toUpperCase()}`);
+        });
       } else {
         setError(data.error || 'Failed to join game');
       }
@@ -80,7 +94,7 @@ export default function HomePage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [playerName, gameToken, router]);
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-purple-600 via-pink-500 to-red-500 flex items-center justify-center p-4">
@@ -113,6 +127,27 @@ export default function HomePage() {
               className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none"
               disabled={loading}
             />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Number of Rounds
+            </label>
+            <div className="flex items-center gap-4">
+              <input
+                type="range"
+                min="1"
+                max="30"
+                value={maxRounds}
+                onChange={(e) => setMaxRounds(parseInt(e.target.value))}
+                className="flex-1 h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-purple-600"
+                disabled={loading}
+              />
+              <div className="w-16 text-center">
+                <span className="text-2xl font-bold text-purple-600">{maxRounds}</span>
+              </div>
+            </div>
+            <p className="text-xs text-gray-500 mt-1">Choose 1-30 rounds</p>
           </div>
         </div>
 
