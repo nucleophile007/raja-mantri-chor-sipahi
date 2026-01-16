@@ -37,22 +37,31 @@ export default function GameRoom({ gameToken }: GameRoomProps) {
 
   // Function to generate and share result image
   const handleShareImage = useCallback(async () => {
-    if (!resultsCardRef.current) return;
+    if (!resultsCardRef.current) {
+      setError('Results card not found');
+      return;
+    }
 
     try {
       setLoading(true);
+      setError('');
       
       // Generate canvas from the results card
       const canvas = await html2canvas(resultsCardRef.current, {
         backgroundColor: '#f8fafc',
         scale: 2, // Higher quality
         logging: false,
-        useCORS: true
+        useCORS: true,
+        allowTaint: true
       });
 
       // Convert to blob
       canvas.toBlob(async (blob) => {
-        if (!blob) return;
+        if (!blob) {
+          setError('Failed to convert image');
+          setLoading(false);
+          return;
+        }
 
         const file = new File([blob], 'rmcs-results.png', { type: 'image/png' });
 
@@ -66,18 +75,20 @@ export default function GameRoom({ gameToken }: GameRoomProps) {
             });
           } catch (err) {
             // User cancelled or share failed, fallback to download
-            downloadImage(canvas);
+            if ((err as Error).name !== 'AbortError') {
+              downloadImage(canvas);
+            }
           }
         } else {
           // Fallback to download
           downloadImage(canvas);
         }
+        setLoading(false);
       }, 'image/png');
       
     } catch (err) {
       console.error('Failed to generate image:', err);
-      setError('Failed to generate image');
-    } finally {
+      setError(`Failed to generate image: ${(err as Error).message}`);
       setLoading(false);
     }
   }, [gameToken]);
@@ -343,11 +354,12 @@ export default function GameRoom({ gameToken }: GameRoomProps) {
               </button>
               <button
                 onClick={() => {
+                  const joinLink = `${window.location.origin}/join/${gameToken}`;
                   const message = encodeURIComponent(
                     `🎮 Join my RMCS game!\n\n` +
-                    `Game Code: ${gameToken}\n` +
-                    `Link: ${window.location.origin}\n\n` +
-                    `Enter the code to join!`
+                    `Click the link below to join automatically:\n` +
+                    `${joinLink}\n\n` +
+                    `Or use Game Code: ${gameToken}`
                   );
                   window.open(`https://wa.me/?text=${message}`, '_blank');
                 }}
@@ -636,7 +648,7 @@ export default function GameRoom({ gameToken }: GameRoomProps) {
             {/* Hidden card for image generation */}
             <div 
               ref={resultsCardRef}
-              className="absolute -left-[9999px] w-[600px] bg-white p-8 rounded-2xl"
+              className="fixed top-0 left-0 w-[600px] bg-white p-8 rounded-2xl opacity-0 pointer-events-none -z-50"
               style={{ fontFamily: 'system-ui, -apple-system, sans-serif' }}
             >
               <div className="text-center mb-6">

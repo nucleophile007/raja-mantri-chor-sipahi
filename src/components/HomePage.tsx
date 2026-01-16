@@ -1,7 +1,7 @@
 'use client';
 
-import { useState, useCallback, useTransition } from 'react';
-import { useRouter } from 'next/navigation';
+import { useState, useCallback, useTransition, useEffect } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 
 type FlowType = 'initial' | 'host' | 'join';
 
@@ -14,6 +14,16 @@ export default function HomePage() {
   const [error, setError] = useState('');
   const [, startTransition] = useTransition();
   const router = useRouter();
+  const searchParams = useSearchParams();
+
+  // Check for game code in URL parameters
+  useEffect(() => {
+    const codeFromUrl = searchParams.get('code');
+    if (codeFromUrl) {
+      setGameToken(codeFromUrl.toUpperCase());
+      setFlow('join');
+    }
+  }, [searchParams]);
 
   const handleCreateGame = useCallback(async () => {
     if (!playerName.trim()) {
@@ -325,6 +335,18 @@ export default function HomePage() {
             </div>
           )}
 
+          {searchParams.get('code') && (
+            <div className="mb-6 p-4 bg-emerald-50 border border-emerald-200 text-emerald-800 rounded-xl text-sm flex items-start gap-2">
+              <svg className="w-5 h-5 mt-0.5 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+              </svg>
+              <div>
+                <p className="font-semibold">Game code loaded!</p>
+                <p className="text-xs mt-1">Just enter your name to join the game</p>
+              </div>
+            </div>
+          )}
+
           <div className="space-y-6">
             <div>
               <label className="block text-sm font-semibold text-slate-900 mb-2">
@@ -337,6 +359,7 @@ export default function HomePage() {
                 placeholder="Enter your name"
                 className="w-full px-4 py-3 border-2 border-slate-200 rounded-xl focus:border-slate-900 focus:outline-none transition-colors"
                 disabled={loading}
+                autoFocus={!!searchParams.get('code')}
               />
             </div>
 
