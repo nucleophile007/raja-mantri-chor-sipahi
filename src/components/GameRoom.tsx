@@ -94,27 +94,29 @@ export default function GameRoom({ gameToken }: GameRoomProps) {
           return;
         }
 
-        const file = new File([blob], 'rmcs-results.png', { type: 'image/png' });
-
-        // Try native share first (mobile)
-        if (navigator.share && navigator.canShare?.({ files: [file] })) {
-          try {
-            await navigator.share({
-              files: [file],
-              title: 'RMCS Game Results',
-              text: '🏆 Check out our RMCS game results!'
-            });
-            setLoading(false);
-            return;
-          } catch (err) {
-            if ((err as Error).name === 'AbortError') {
+        // On mobile, try native share first
+        if (isMobile) {
+          const file = new File([blob], 'rmcs-results.png', { type: 'image/png' });
+          if (navigator.share && navigator.canShare?.({ files: [file] })) {
+            try {
+              await navigator.share({
+                files: [file],
+                title: 'RMCS Game Results',
+                text: '🏆 Check out our RMCS game results!'
+              });
               setLoading(false);
               return;
+            } catch (err) {
+              if ((err as Error).name === 'AbortError') {
+                setLoading(false);
+                return;
+              }
+              // Fall through to download if share fails
             }
           }
         }
 
-        // Fallback: download the image
+        // Desktop or fallback: download the image directly
         downloadImage(canvas);
         setLoading(false);
       }, 'image/png');
@@ -667,7 +669,7 @@ export default function GameRoom({ gameToken }: GameRoomProps) {
           </div>
         )}
 
-        {/* Chit Mix Animation Overlay */}
+        {/* Chit Mix Animation Overlay - renders on top of pre-loaded UI */}
         {showChitAnimation && (
           <div className="fixed inset-0 bg-black bg-opacity-80 z-50 flex items-center justify-center p-4">
             <div className="w-full max-w-2xl">
@@ -676,96 +678,97 @@ export default function GameRoom({ gameToken }: GameRoomProps) {
           </div>
         )}
 
-        {/* King Revealed / Mantri Guessing */}
-        {(gameState.gameStatus === 'KING_REVEALED' || gameState.gameStatus === 'MANTRI_GUESSING') && (
-          <div className="space-y-4">
-            {/* Your Character */}
-            <div className="pixel-card p-6">
-              <h2 className="pixel-text mb-4" style={{ color: 'var(--pixel-dark)' }}>Your Character</h2>
-              {currentPlayer?.character && (
-                <div className={`pixel-card p-6 text-center ${characterCardClasses[currentPlayer.character]}`}>
-                  <div className="flex justify-center mb-2">
-                    {React.createElement(characterComponents[currentPlayer.character], { size: 96 })}
-                  </div>
-                  <p className="pixel-text-lg" style={{ color: 'var(--pixel-dark)' }}>{currentPlayer.character}</p>
-                </div>
-              )}
-            </div>
-
-            {/* All Players */}
-            <div className="pixel-card p-6">
-              <h2 className="pixel-text mb-4" style={{ color: 'var(--pixel-dark)' }}>Players</h2>
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                {gameState.players.map((player) => {
-                  const showCharacter =
-                    player.character === 'RAJA' ||
-                    player.character === 'MANTRI' ||
-                    player.id === playerId;
-
-                  const CharacterComponent = player.character ? characterComponents[player.character] : null;
-
-                  return (
-                    <div
-                      key={player.id}
-                      onClick={() => {
-                        if (isMantri && player.id !== playerId && player.character !== 'RAJA' && player.character !== 'MANTRI') {
-                          setSelectedPlayer(player.id);
-                        }
-                      }}
-                      className={`pixel-player-slot transition-all ${selectedPlayer === player.id
-                        ? 'transform scale-105'
-                        : ''
-                        } ${isMantri && player.id !== playerId && player.character !== 'RAJA' && player.character !== 'MANTRI'
-                          ? 'cursor-pointer hover:transform hover:scale-105'
-                          : ''
-                        } ${showCharacter && player.character ? characterCardClasses[player.character] : ''}`}
-                      style={selectedPlayer === player.id ? { borderColor: 'var(--pixel-primary)', borderWidth: '6px' } : {}}
-                    >
-                      <p className="font-bold mb-2" style={{ color: 'var(--pixel-dark)' }}>{player.name}</p>
-                      <div className="flex justify-center items-center gap-1 mb-2">
-                        <PixelCoin size={16} />
-                        <span className="text-sm font-bold" style={{ color: 'var(--pixel-dark)' }}>{player.score}</span>
-                      </div>
-                      {showCharacter && CharacterComponent && (
-                        <div className="mt-2 flex flex-col items-center">
-                          <CharacterComponent size={48} />
-                          <p className="text-xs font-bold mt-1" style={{ color: 'var(--pixel-dark)' }}>{player.character}</p>
-                        </div>
-                      )}
-                      {!showCharacter && (
-                        <div className="mt-2 flex justify-center">
-                          <PixelQuestionMark size={48} />
-                        </div>
-                      )}
+        {/* King Revealed / Mantri Guessing - Pre-renders during animation for instant display */}
+        {(gameState.gameStatus === 'KING_REVEALED' || gameState.gameStatus === 'MANTRI_GUESSING' ||
+          (showChitAnimation && gameState.players.some(p => p.character))) && (
+            <div className={`space-y-4 ${showChitAnimation ? 'invisible' : ''}`}>
+              {/* Your Character */}
+              <div className="pixel-card p-6">
+                <h2 className="pixel-text mb-4" style={{ color: 'var(--pixel-dark)' }}>Your Character</h2>
+                {currentPlayer?.character && (
+                  <div className={`pixel-card p-6 text-center ${characterCardClasses[currentPlayer.character]}`}>
+                    <div className="flex justify-center mb-2">
+                      {React.createElement(characterComponents[currentPlayer.character], { size: 96 })}
                     </div>
-                  );
-                })}
+                    <p className="pixel-text-lg" style={{ color: 'var(--pixel-dark)' }}>{currentPlayer.character}</p>
+                  </div>
+                )}
               </div>
 
-              {isMantri && (
-                <div className="mt-6">
-                  <p className="text-center mb-4 font-bold" style={{ color: 'var(--pixel-dark)' }}>
-                    You are the Mantri! Select who you think is the Chor:
-                  </p>
-                  <button
-                    onClick={handleMantriGuess}
-                    disabled={loading || !selectedPlayer}
-                    className="w-full pixel-btn pixel-btn-accent"
-                    style={{ opacity: loading || !selectedPlayer ? 0.5 : 1 }}
-                  >
-                    {loading ? 'Submitting...' : 'Submit Guess'}
-                  </button>
-                </div>
-              )}
+              {/* All Players */}
+              <div className="pixel-card p-6">
+                <h2 className="pixel-text mb-4" style={{ color: 'var(--pixel-dark)' }}>Players</h2>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                  {gameState.players.map((player) => {
+                    const showCharacter =
+                      player.character === 'RAJA' ||
+                      player.character === 'MANTRI' ||
+                      player.id === playerId;
 
-              {!isMantri && (
-                <div className="mt-6 text-center" style={{ color: 'var(--pixel-dark)' }}>
-                  Waiting for Mantri to make a guess...
+                    const CharacterComponent = player.character ? characterComponents[player.character] : null;
+
+                    return (
+                      <div
+                        key={player.id}
+                        onClick={() => {
+                          if (isMantri && player.id !== playerId && player.character !== 'RAJA' && player.character !== 'MANTRI') {
+                            setSelectedPlayer(player.id);
+                          }
+                        }}
+                        className={`pixel-player-slot transition-all ${selectedPlayer === player.id
+                          ? 'transform scale-105'
+                          : ''
+                          } ${isMantri && player.id !== playerId && player.character !== 'RAJA' && player.character !== 'MANTRI'
+                            ? 'cursor-pointer hover:transform hover:scale-105'
+                            : ''
+                          } ${showCharacter && player.character ? characterCardClasses[player.character] : ''}`}
+                        style={selectedPlayer === player.id ? { borderColor: 'var(--pixel-primary)', borderWidth: '6px' } : {}}
+                      >
+                        <p className="font-bold mb-2" style={{ color: 'var(--pixel-dark)' }}>{player.name}</p>
+                        <div className="flex justify-center items-center gap-1 mb-2">
+                          <PixelCoin size={16} />
+                          <span className="text-sm font-bold" style={{ color: 'var(--pixel-dark)' }}>{player.score}</span>
+                        </div>
+                        {showCharacter && CharacterComponent && (
+                          <div className="mt-2 flex flex-col items-center">
+                            <CharacterComponent size={48} />
+                            <p className="text-xs font-bold mt-1" style={{ color: 'var(--pixel-dark)' }}>{player.character}</p>
+                          </div>
+                        )}
+                        {!showCharacter && (
+                          <div className="mt-2 flex justify-center">
+                            <PixelQuestionMark size={48} />
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
                 </div>
-              )}
+
+                {isMantri && (
+                  <div className="mt-6">
+                    <p className="text-center mb-4 font-bold" style={{ color: 'var(--pixel-dark)' }}>
+                      You are the Mantri! Select who you think is the Chor:
+                    </p>
+                    <button
+                      onClick={handleMantriGuess}
+                      disabled={loading || !selectedPlayer}
+                      className="w-full pixel-btn pixel-btn-accent"
+                      style={{ opacity: loading || !selectedPlayer ? 0.5 : 1 }}
+                    >
+                      {loading ? 'Submitting...' : 'Submit Guess'}
+                    </button>
+                  </div>
+                )}
+
+                {!isMantri && (
+                  <div className="mt-6 text-center" style={{ color: 'var(--pixel-dark)' }}>
+                    Waiting for Mantri to make a guess...
+                  </div>
+                )}
+              </div>
             </div>
-          </div>
-        )}
+          )}
 
         {/* Round End */}
         {gameState.gameStatus === 'ROUND_END' && currentRoundResult && (
