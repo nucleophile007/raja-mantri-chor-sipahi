@@ -199,25 +199,31 @@ export default function GameRoom({ gameToken }: GameRoomProps) {
   const handlePusherUpdate = useCallback((newState: GameState) => {
     const currentPlayerStillInGame = newState.players.find(p => p.id === playerId);
 
-    if (newState.gameStatus === 'GAME_END' || (playerId && !currentPlayerStillInGame)) {
+    // If player was removed from game (not just GAME_END), redirect
+    if (playerId && !currentPlayerStillInGame && newState.gameStatus !== 'GAME_END') {
+      alert('You have been removed from the game. Returning to home page.');
+      localStorage.removeItem('playerId');
+      localStorage.removeItem('gameToken');
+      router.push('/');
+      return;
+    }
+
+    // If game ended due to host leaving or termination (no players left), redirect
+    if (newState.players.length === 0) {
       let message = 'The game has ended.';
-
-      if (newState.players.length === 0) {
-        if (gameState && gameState.currentRound > 0) {
-          message = 'A player left mid-game. The game has been terminated to prevent score inconsistencies.';
-        } else {
-          message = 'The host has ended the game.';
-        }
-      } else if (!currentPlayerStillInGame && playerId) {
-        message = 'You have been removed from the game.';
+      if (gameState && gameState.currentRound > 0) {
+        message = 'A player left mid-game. The game has been terminated to prevent score inconsistencies.';
+      } else {
+        message = 'The host has ended the game.';
       }
-
       alert(message + ' Returning to home page.');
       localStorage.removeItem('playerId');
       localStorage.removeItem('gameToken');
       router.push('/');
       return;
     }
+
+    // For normal GAME_END (game finished all rounds), just update state to show results
 
     // Show chit animation when status changes to DISTRIBUTING
     if (newState.gameStatus === 'DISTRIBUTING' && gameState?.gameStatus !== 'DISTRIBUTING') {
