@@ -43,3 +43,6 @@ next-env.d.ts
 # documentation (optional - remove if you want to commit docs)
 *.md
 !README.md
+
+# design page (internal use only)
+/src/app/design

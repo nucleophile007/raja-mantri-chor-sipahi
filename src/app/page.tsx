@@ -1,5 +1,6 @@
 import { Suspense } from 'react';
 import HomePage from '@/components/HomePage';
+import { PixelDice } from '@/components/PixelCharacters';
 
 function HomePageWrapper() {
   return <HomePage />;
@@ -8,10 +9,13 @@ function HomePageWrapper() {
 export default function Home() {
   return (
     <Suspense fallback={
-      <div className="min-h-screen bg-slate-50 flex items-center justify-center">
+      <div className="min-h-screen pixel-grid flex items-center justify-center" style={{ background: 'var(--pixel-bg)' }}>
         <div className="text-center">
-          <div className="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-slate-900 mb-4"></div>
-          <p className="text-slate-600">Loading...</p>
+          <div className="pixel-float mb-4">
+            <PixelDice size={64} />
+          </div>
+          <div className="pixel-spinner mx-auto mb-4"></div>
+          <p className="pixel-text" style={{ color: 'var(--pixel-dark)' }}>Loading...</p>
         </div>
       </div>
     }>
@@ -19,5 +23,3 @@ export default function Home() {
     </Suspense>
   );
 }
-
-
