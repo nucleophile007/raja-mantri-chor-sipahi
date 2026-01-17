@@ -7,7 +7,7 @@ import { broadcastGameUpdate } from '@/lib/pusher';
 export async function POST(request: NextRequest) {
   try {
     const { gameToken, playerId, guessedPlayerId } = await request.json();
-    
+
     if (!gameToken || !playerId || !guessedPlayerId) {
       return NextResponse.json(
         { error: 'Missing required parameters' },
@@ -16,7 +16,7 @@ export async function POST(request: NextRequest) {
     }
 
     const game = await getGame(gameToken.toUpperCase());
-    
+
     if (!game) {
       return NextResponse.json(
         { error: 'Game not found' },
@@ -35,7 +35,7 @@ export async function POST(request: NextRequest) {
 
     // Calculate scores
     const { updatedPlayers, isCorrect } = calculateRoundScores(game.players, guessedPlayerId);
-    
+
     // Save round result
     const chor = game.players.find(p => p.character === 'CHOR');
     const roundResult: RoundResult = {
@@ -53,7 +53,13 @@ export async function POST(request: NextRequest) {
 
     game.roundHistory.push(roundResult);
     game.players = updatedPlayers;
-    game.gameStatus = 'ROUND_END';
+
+    // Check if this was the final round - if so, automatically end the game
+    if (game.currentRound >= game.maxRounds) {
+      game.gameStatus = 'GAME_END';
+    } else {
+      game.gameStatus = 'ROUND_END';
+    }
 
     await updateGame(gameToken.toUpperCase(), game);
 
@@ -63,7 +69,8 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({
       success: true,
       isCorrect,
-      gameState: game
+      gameState: game,
+      gameEnded: game.gameStatus === 'GAME_END'
     });
   } catch (error) {
     console.error('Error processing guess:', error);

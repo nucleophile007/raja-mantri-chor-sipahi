@@ -36,9 +36,18 @@ export default function GameRoom({ gameToken }: GameRoomProps) {
   const [error, setError] = useState('');
   const [animating, setAnimating] = useState(false);
   const [showChitAnimation, setShowChitAnimation] = useState(false);
+  const [isMobile, setIsMobile] = useState(false);
   const [, startTransition] = useTransition();
   const router = useRouter();
   const resultsCardRef = useRef<HTMLDivElement>(null);
+
+  // Detect mobile device
+  useEffect(() => {
+    const checkMobile = () => {
+      setIsMobile(/iPhone|iPad|iPod|Android/i.test(navigator.userAgent));
+    };
+    checkMobile();
+  }, []);
 
   // Function to generate and share result image
   const handleShareImage = useCallback(async () => {
@@ -223,7 +232,12 @@ export default function GameRoom({ gameToken }: GameRoomProps) {
       return;
     }
 
-    // For normal GAME_END (game finished all rounds), just update state to show results
+    // For normal GAME_END (game finished all rounds), clear session so user can start fresh
+    if (newState.gameStatus === 'GAME_END' && newState.players.length > 0) {
+      // Clear session - game is complete, user can host/join new game on home page
+      localStorage.removeItem('playerId');
+      localStorage.removeItem('gameToken');
+    }
 
     // Show chit animation when status changes to DISTRIBUTING
     if (newState.gameStatus === 'DISTRIBUTING' && gameState?.gameStatus !== 'DISTRIBUTING') {
@@ -934,7 +948,7 @@ export default function GameRoom({ gameToken }: GameRoomProps) {
                 className="w-full pixel-btn"
                 style={{ opacity: loading ? 0.5 : 1 }}
               >
-                {loading ? 'Generating...' : '📸 Share as Image'}
+                {loading ? 'Generating...' : isMobile ? '📸 Share Image' : '📥 Download Image'}
               </button>
 
               <button
