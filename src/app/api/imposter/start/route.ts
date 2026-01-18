@@ -56,7 +56,8 @@ export async function POST(request: NextRequest) {
         game.imposterId = imposterId;
         game.gameStatus = 'CARDS_DEALT';
         game.hostInLobby = false;
-        game.word = null; // Will be set asynchronously
+        game.word = generateWord(); // Instant selection from word bank
+        console.log(`✅ Word selected: ${game.word}`);
 
         // REMOVE players who were not in the lobby - they are kicked out entirely
         game.players = game.players
@@ -78,42 +79,7 @@ export async function POST(request: NextRequest) {
             status: 'CARDS_DEALT'
         });
 
-        // Generate word in background (non-blocking)
-        generateWord()
-            .then(async (word) => {
-                console.log(`✅ Word generated: ${word}`);
 
-                // Fetch latest game state
-                const currentGame = await getImposterGame(gameToken);
-                if (!currentGame || currentGame.gameStatus !== 'CARDS_DEALT') {
-                    console.log('⚠️ Game state changed, skipping word update');
-                    return;
-                }
-
-                // Update word
-                currentGame.word = word;
-                await updateImposterGame(gameToken, currentGame);
-
-                // Broadcast force-refresh so clients get the word
-                await broadcastImposterAction(gameToken, {
-                    type: 'WORD_READY'
-                });
-
-                console.log('📡 Word broadcast to all clients');
-            })
-            .catch((error) => {
-                console.error('❌ Failed to generate word:', error);
-                // Fallback: use a default word
-                getImposterGame(gameToken).then(async (currentGame) => {
-                    if (currentGame && !currentGame.word) {
-                        currentGame.word = 'COFFEE'; // Fallback word
-                        await updateImposterGame(gameToken, currentGame);
-                        await broadcastImposterAction(gameToken, {
-                            type: 'WORD_READY'
-                        });
-                    }
-                });
-            });
 
         return NextResponse.json({
             success: true,
