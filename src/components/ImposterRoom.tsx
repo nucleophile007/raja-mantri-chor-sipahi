@@ -317,14 +317,22 @@ export default function ImposterRoom({ gameToken }: ImposterRoomProps) {
     );
 
     useEffect(() => {
+        let previousState = connectionState;
+
+        if (connectionState === 'connected' && previousState !== 'connected' && playerId) {
+            // Reconnected! Sync state
+            console.log('✅ Pusher reconnected - syncing state');
+            fetchState(false);
+        }
+
         if (connectionState === 'connected') {
             setConnectionStatus('connected');
-        } else if (connectionState === 'connecting' || connectionState === 'initialized') {
+        } else if (connectionState === 'connecting') {
             setConnectionStatus('connecting');
         } else {
             setConnectionStatus('disconnected');
         }
-    }, [connectionState]);
+    }, [connectionState, playerId, fetchState]);
 
     // Handle scratching card with optimistic update
     const handleScratch = useCallback(async () => {
@@ -343,12 +351,20 @@ export default function ImposterRoom({ gameToken }: ImposterRoomProps) {
             const data = await response.json();
             if (data.success && data.cardContent) {
                 setCardContent(data.cardContent);
-                // Optimistic update
-                if (gameState) {
-                    const updatedPlayers = gameState.players.map(p =>
-                        p.isMe ? { ...p, hasScratched: true } : p
-                    );
-                    setGameState({ ...gameState, players: updatedPlayers, myCard: data.cardContent });
+
+                // If word not ready, listen for WORD_READY and retry
+                if (data.wordNotReady) {
+                    setMilestoneToast('[GENERATING WORD] PLEASE WAIT...');
+                    // Auto-refresh will happen when WORD_READY is broadcast
+                    // The fetchState will get the real word
+                } else {
+                    // Optimistic update
+                    if (gameState) {
+                        const updatedPlayers = gameState.players.map(p =>
+                            p.isMe ? { ...p, hasScratched: true } : p
+                        );
+                        setGameState({ ...gameState, players: updatedPlayers, myCard: data.cardContent });
+                    }
                 }
             } else if (data.error) {
                 setError(data.error);
@@ -648,6 +664,39 @@ export default function ImposterRoom({ gameToken }: ImposterRoomProps) {
                                 ))}
                             </div>
 
+                            {/* Voting Timeout Selector (Host Only) */}
+                            {isHost && (
+                                <div className="pixel-card p-4 mb-4">
+                                    <label className="block text-sm font-bold mb-2" style={{ color: 'var(--pixel-dark)' }}>
+                                        ⏱️ Voting Timeout
+                                    </label>
+                                    <select
+                                        value={gameState.votingTimeout || 120}
+                                        onChange={async (e) => {
+                                            const timeout = parseInt(e.target.value);
+                                            try {
+                                                await fetch('/api/imposter/update-timeout', {
+                                                    method: 'POST',
+                                                    headers: { 'Content-Type': 'application/json' },
+                                                    body: JSON.stringify({ gameToken, playerId, votingTimeout: timeout })
+                                                });
+                                                await fetchState(false);
+                                            } catch (err) {
+                                                console.error('Failed to update timeout');
+                                            }
+                                        }}
+                                        className="pixel-input w-full"
+                                    >
+                                        <option value={30}>30 seconds</option>
+                                        <option value={60}>1 minute</option>
+                                        <option value={90}>1.5 minutes</option>
+                                        <option value={120}>2 minutes</option>
+                                        <option value={150}>2.5 minutes</option>
+                                        <option value={180}>3 minutes</option>
+                                    </select>
+                                </div>
+                            )}
+
                             {isHost && (
                                 <button
                                     onClick={handleStartGame}
@@ -814,6 +863,30 @@ export default function ImposterRoom({ gameToken }: ImposterRoomProps) {
                                 />
                             </div>
                         </div>
+
+                        {/* Countdown Timer */}
+                        {gameState.votingStartedAt && (() => {
+                            const elapsed = Math.floor((Date.now() - gameState.votingStartedAt) / 1000);
+                            const remaining = Math.max(0, gameState.votingTimeout - elapsed);
+                            const minutes = Math.floor(remaining / 60);
+                            const seconds = remaining % 60;
+
+                            // Auto-refresh when time's up
+                            if (remaining === 0) {
+                                setTimeout(() => fetchState(false), 500);
+                            }
+
+                            return (
+                                <div className="pixel-card p-3 text-center" style={{
+                                    background: remaining < 10 ? 'var(--pixel-danger)' : 'var(--pixel-warning)',
+                                    color: 'white'
+                                }}>
+                                    <p className="font-bold">
+                                        {remaining === 0 ? '[TIME UP]' : `[${minutes}:${seconds.toString().padStart(2, '0')}]`}
+                                    </p>
+                                </div>
+                            );
+                        })()}
 
                         <VotingPanel
                             players={gameState.players}

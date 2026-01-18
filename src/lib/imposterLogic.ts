@@ -149,7 +149,9 @@ export function toClientState(
         votes,
         voteResults,
         result: game.result,
-        endReason: game.endReason
+        endReason: game.endReason,
+        votingTimeout: game.votingTimeout || 120,
+        votingStartedAt: game.votingStartedAt
     };
 }
 

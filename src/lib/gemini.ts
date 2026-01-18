@@ -24,6 +24,17 @@ const FALLBACK_WORDS = [
 ];
 
 export async function generateWord(): Promise<string> {
+    // Race between actual generation and 10-second timeout
+    return Promise.race([
+        generateWordInternal(),
+        timeoutPromise(10000)
+    ]).catch((error) => {
+        console.error('Word generation failed or timed out:', error);
+        return getRandomFallbackWord();
+    });
+}
+
+async function generateWordInternal(): Promise<string> {
     // If no API key, use fallback
     if (!GEMINI_API_KEY) {
         console.warn('GEMINI_API_KEY not set, using fallback words');
@@ -85,6 +96,13 @@ export async function generateWord(): Promise<string> {
         console.error('Failed to generate word from Gemini:', error);
         return getRandomFallbackWord();
     }
+}
+
+// Timeout helper
+function timeoutPromise(ms: number): Promise<never> {
+    return new Promise((_, reject) => {
+        setTimeout(() => reject(new Error(`Timeout after ${ms}ms`)), ms);
+    });
 }
 
 function getRandomFallbackWord(): string {

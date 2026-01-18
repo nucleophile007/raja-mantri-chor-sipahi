@@ -42,6 +42,7 @@ export async function POST(request: NextRequest) {
         // Start voting
         game.gameStatus = 'VOTING';
         game.votes = [];
+        game.votingStartedAt = Date.now(); // Set start time for countdown
 
         // Reset vote flags
         game.players = game.players.map(p => ({

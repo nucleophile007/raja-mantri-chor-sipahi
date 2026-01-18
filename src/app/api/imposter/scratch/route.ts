@@ -110,6 +110,16 @@ export async function POST(request: NextRequest) {
         // Return card content to the player
         const isImposter = game.imposterId === playerId;
 
+        // Handle race condition: word not ready yet
+        if (!game.word && !isImposter) {
+            return NextResponse.json({
+                success: true,
+                cardContent: 'LOADING...',
+                wordNotReady: true, // Tell client to retry
+                gameStatus: game.gameStatus
+            });
+        }
+
         return NextResponse.json({
             success: true,
             cardContent: isImposter ? 'IMPOSTER' : game.word,

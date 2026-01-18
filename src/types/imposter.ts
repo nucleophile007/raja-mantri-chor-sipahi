@@ -13,6 +13,8 @@ export interface ImposterGame {
     endedAt: number | null;
     endReason: string | null;
     hostInLobby: boolean;       // True when host has returned to lobby after game end
+    votingTimeout: number;      // Seconds for voting (30-180)
+    votingStartedAt: number | null; // Timestamp when voting started
 }
 
 export type ImposterGameStatus =
@@ -58,6 +60,8 @@ export interface ImposterClientState {
     voteResults: VoteResult[] | null;  // Only shown after game ends
     result: ImposterResult | null;
     endReason: string | null;
+    votingTimeout: number;          // Voting timeout in seconds
+    votingStartedAt: number | null; // When voting started (for countdown)
 }
 
 // No player ID exposed
