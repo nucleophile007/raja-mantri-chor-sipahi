@@ -114,6 +114,10 @@ export default function ImposterRoom({ gameToken }: ImposterRoomProps) {
                 case 'PLAYER_JOINED':
                     // Add new player to list instantly
                     if (action.playerName && !prev.players.some(p => p.name === action.playerName)) {
+                        // Show join notification
+                        setMilestoneToast(`[+] ${action.playerName} JOINED`);
+                        setTimeout(() => setMilestoneToast(null), 3000);
+
                         return {
                             ...prev,
                             players: [...prev.players, {
@@ -130,6 +134,12 @@ export default function ImposterRoom({ gameToken }: ImposterRoomProps) {
                     return prev;
 
                 case 'PLAYER_LEFT':
+                    // Show leave notification
+                    if (action.playerName) {
+                        setMilestoneToast(`[-] ${action.playerName} LEFT`);
+                        setTimeout(() => setMilestoneToast(null), 3000);
+                    }
+
                     // Remove player or mark inactive, and update host
                     return {
                         ...prev,
@@ -528,7 +538,22 @@ export default function ImposterRoom({ gameToken }: ImposterRoomProps) {
                                     {connectionStatus === 'disconnected' && '🔴'}
                                 </span>
                             </p>
-                        </div>
+                            {/* Connection Status - Prominent */}
+                            <div className="mb-4">
+                                <div
+                                    className="pixel-card p-2 text-center text-xs font-bold"
+                                    style={{
+                                        background: connectionStatus === 'connected' ? '#10b981' :
+                                            connectionStatus === 'connecting' ? '#f59e0b' : '#ef4444',
+                                        color: 'white',
+                                        border: '2px solid var(--pixel-dark)',
+                                        animation: connectionStatus !== 'connected' ? 'pulse 2s ease-in-out infinite' : 'none'
+                                    }}
+                                >
+                                    {connectionStatus === 'connected' ? '🟢 LIVE' :
+                                        connectionStatus === 'connecting' ? '🟡 CONNECTING...' : '🔴 RECONNECTING...'}
+                                </div>
+                            </div>        </div>
                         <div className="flex gap-2">
                             <button
                                 onClick={handleManualRefresh}
@@ -557,13 +582,28 @@ export default function ImposterRoom({ gameToken }: ImposterRoomProps) {
                     </div>
                 )}
 
-                {/* Milestone Toast */}
+                {/* Milestone Toast - Pixel Style */}
                 {milestoneToast && (
                     <div
-                        className="pixel-card p-4 mb-4 text-center animate-bounce"
-                        style={{ background: 'var(--pixel-primary)', color: 'white', border: '3px solid var(--pixel-dark)' }}
+                        className="mb-4 text-center"
+                        style={{
+                            animation: 'bounce 1s ease-in-out infinite',
+                            filter: 'drop-shadow(4px 4px 0px var(--pixel-dark))'
+                        }}
                     >
-                        {milestoneToast}
+                        <div
+                            className="pixel-card p-4"
+                            style={{
+                                background: 'linear-gradient(135deg, var(--pixel-primary) 0%, var(--pixel-success) 100%)',
+                                color: 'white',
+                                border: '4px solid var(--pixel-dark)',
+                                fontSize: '1.1rem',
+                                fontWeight: 'bold',
+                                textShadow: '2px 2px 0px rgba(0,0,0,0.3)'
+                            }}
+                        >
+                            {milestoneToast}
+                        </div>
                     </div>
                 )}
 
@@ -656,7 +696,7 @@ export default function ImposterRoom({ gameToken }: ImposterRoomProps) {
                                 <button
                                     onClick={() => {
                                         navigator.clipboard.writeText(gameToken);
-                                        setMilestoneToast('📋 Code copied!');
+                                        setMilestoneToast('[COPIED] CODE SAVED TO CLIPBOARD');
                                         setTimeout(() => setMilestoneToast(null), 2000);
                                     }}
                                     className="pixel-btn text-xs p-2"

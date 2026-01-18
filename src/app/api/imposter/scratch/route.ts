@@ -82,7 +82,7 @@ export async function POST(request: NextRequest) {
         if (scratchedCount === 1) {
             await broadcastImposterAction(gameToken, {
                 type: 'MILESTONE',
-                message: `🎴 ${player.name} revealed their card first!`
+                message: `[FIRST] ${player.name} REVEALED THEIR CARD!`
             });
         }
 
@@ -90,7 +90,7 @@ export async function POST(request: NextRequest) {
         if (allScratched) {
             await broadcastImposterAction(gameToken, {
                 type: 'MILESTONE',
-                message: '✅ Everyone has revealed their cards! Discussion time!'
+                message: '[ALL CARDS REVEALED] DISCUSSION TIME!'
             });
 
             // Also broadcast game status change
@@ -98,6 +98,13 @@ export async function POST(request: NextRequest) {
                 type: 'GAME_STARTED',
                 status: 'DISCUSSION'
             });
+
+            // Force all clients to refresh state for consistency
+            setTimeout(async () => {
+                await broadcastImposterAction(gameToken, {
+                    type: 'WORD_READY' // Reuse as generic refresh trigger
+                });
+            }, 500);
         }
 
         // Return card content to the player

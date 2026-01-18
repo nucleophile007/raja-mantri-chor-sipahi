@@ -90,7 +90,7 @@ export async function POST(request: NextRequest) {
         if (votedCount === 1) {
             await broadcastImposterAction(gameToken, {
                 type: 'MILESTONE',
-                message: `🗳️ ${player.name} voted first!`
+                message: `[FIRST VOTE] ${player.name} VOTED!`
             });
         }
 
@@ -99,7 +99,7 @@ export async function POST(request: NextRequest) {
             // Milestone: All players voted!
             await broadcastImposterAction(gameToken, {
                 type: 'MILESTONE',
-                message: '✅ All votes are in! Revealing results...'
+                message: '[ALL VOTES IN] REVEALING RESULTS...'
             });
 
             // Calculate result
@@ -145,6 +145,13 @@ export async function POST(request: NextRequest) {
                 endReason,
                 voteResults
             });
+
+            // Force refresh to ensure all clients see result screen
+            setTimeout(async () => {
+                await broadcastImposterAction(gameToken, {
+                    type: 'WORD_READY' // Reuse as generic refresh trigger
+                });
+            }, 500);
         } else {
             await updateImposterGame(gameToken, game);
         }
