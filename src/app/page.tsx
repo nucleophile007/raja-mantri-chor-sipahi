@@ -1,9 +1,9 @@
 import { Suspense } from 'react';
-import HomePage from '@/components/HomePage';
+import GameArcade from '@/components/GameArcade';
 import { PixelDice } from '@/components/PixelCharacters';
 
-function HomePageWrapper() {
-  return <HomePage />;
+function GameArcadeWrapper() {
+  return <GameArcade />;
 }
 
 export default function Home() {
@@ -19,7 +19,7 @@ export default function Home() {
         </div>
       </div>
     }>
-      <HomePageWrapper />
+      <GameArcadeWrapper />
     </Suspense>
   );
 }

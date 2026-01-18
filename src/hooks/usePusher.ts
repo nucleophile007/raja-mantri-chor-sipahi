@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef, useCallback } from 'react';
+import { useEffect, useRef, useCallback, useState } from 'react';
 import Pusher from 'pusher-js';
 import { GameState } from '@/types/game';
 
@@ -10,15 +10,35 @@ interface UsePusherOptions {
   enabled?: boolean;
 }
 
+// Shared Pusher instance
+let sharedPusher: Pusher | null = null;
+let connectionChangeCallbacks: Set<(state: string) => void> = new Set();
+
+function getSharedPusher(): Pusher {
+  if (!sharedPusher) {
+    sharedPusher = new Pusher(process.env.NEXT_PUBLIC_PUSHER_KEY!, {
+      cluster: process.env.NEXT_PUBLIC_PUSHER_CLUSTER || 'ap2',
+      enabledTransports: ['ws', 'wss'],
+      disableStats: true,
+    });
+
+    // Track connection state changes for all subscribers
+    sharedPusher.connection.bind('state_change', (states: { current: string; previous: string }) => {
+      console.log(`📡 Pusher: ${states.previous} → ${states.current}`);
+      connectionChangeCallbacks.forEach(cb => cb(states.current));
+    });
+  }
+  return sharedPusher;
+}
+
 /**
  * Hook to subscribe to real-time game updates via Pusher
  * Automatically handles connection, disconnection, and cleanup
  * Optimized: Reuses Pusher instance across re-renders
  */
 export function usePusher({ gameToken, onStateUpdate, enabled = true }: UsePusherOptions) {
-  const pusherRef = useRef<Pusher | null>(null);
-  const channelRef = useRef<any>(null);
-  
+  const channelRef = useRef<ReturnType<Pusher['subscribe']> | null>(null);
+
   // Memoize callback to prevent unnecessary re-subscriptions
   const handleStateUpdate = useCallback((newState: GameState) => {
     onStateUpdate(newState);
@@ -27,17 +47,7 @@ export function usePusher({ gameToken, onStateUpdate, enabled = true }: UsePushe
   useEffect(() => {
     if (!enabled || !gameToken) return;
 
-    // Reuse existing Pusher instance if available
-    if (!pusherRef.current) {
-      const pusher = new Pusher(process.env.NEXT_PUBLIC_PUSHER_KEY!, {
-        cluster: process.env.NEXT_PUBLIC_PUSHER_CLUSTER || 'ap2',
-        enabledTransports: ['ws', 'wss'], // Only use WebSocket (faster)
-        disableStats: true, // Disable stats for better performance
-      });
-      pusherRef.current = pusher;
-    }
-
-    const pusher = pusherRef.current;
+    const pusher = getSharedPusher();
 
     // Subscribe to game channel
     const channel = pusher.subscribe(`game-${gameToken}`);
@@ -46,21 +56,6 @@ export function usePusher({ gameToken, onStateUpdate, enabled = true }: UsePushe
     // Listen for state updates (use memoized callback)
     channel.bind('state-update', handleStateUpdate);
 
-    // Connection state logging (only in dev mode)
-    if (process.env.NODE_ENV === 'development') {
-      pusher.connection.bind('connected', () => {
-        console.log('✅ Pusher connected');
-      });
-
-      pusher.connection.bind('disconnected', () => {
-        console.log('⚠️ Pusher disconnected');
-      });
-
-      pusher.connection.bind('error', (error: any) => {
-        console.error('❌ Pusher error:', error);
-      });
-    }
-
     // Cleanup on unmount
     return () => {
       if (channelRef.current) {
@@ -68,11 +63,93 @@ export function usePusher({ gameToken, onStateUpdate, enabled = true }: UsePushe
         channelRef.current.unsubscribe();
         channelRef.current = null;
       }
-      // Don't disconnect Pusher - reuse the connection
     };
   }, [gameToken, enabled, handleStateUpdate]);
 
   return {
-    isConnected: pusherRef.current?.connection.state === 'connected',
+    isConnected: sharedPusher?.connection.state === 'connected',
   };
+}
+
+/**
+ * Generic Pusher hook for any channel and event
+ * Includes onReconnect callback to fetch fresh state after disconnection
+ */
+export function useGenericPusher<T>(
+  channelName: string,
+  eventName: string,
+  onEvent: (data: T) => void,
+  enabled: boolean = true,
+  onReconnect?: () => void  // Called when Pusher reconnects after being disconnected
+) {
+  const channelRef = useRef<ReturnType<Pusher['subscribe']> | null>(null);
+  const wasDisconnected = useRef(false);
+  const [connectionState, setConnectionState] = useState<string>('connecting');
+
+  const handleEvent = useCallback((data: T) => {
+    console.log(`📩 Pusher event received on ${channelName}:${eventName}`, data);
+    onEvent(data);
+  }, [onEvent, channelName, eventName]);
+
+  useEffect(() => {
+    if (!enabled || !channelName) return;
+
+    const pusher = getSharedPusher();
+    const channel = pusher.subscribe(channelName);
+    channelRef.current = channel;
+
+    channel.bind(eventName, handleEvent);
+
+    // Track connection state for reconnection detection
+    const handleConnectionChange = (state: string) => {
+      setConnectionState(state);
+
+      if (state === 'disconnected' || state === 'unavailable') {
+        wasDisconnected.current = true;
+      }
+
+      // On reconnect, trigger refresh
+      if (state === 'connected' && wasDisconnected.current) {
+        wasDisconnected.current = false;
+        console.log('🔄 Pusher reconnected, triggering refresh...');
+        onReconnect?.();
+      }
+    };
+
+    connectionChangeCallbacks.add(handleConnectionChange);
+
+    return () => {
+      connectionChangeCallbacks.delete(handleConnectionChange);
+      if (channelRef.current) {
+        channelRef.current.unbind(eventName);
+        channelRef.current.unsubscribe();
+        channelRef.current = null;
+      }
+    };
+  }, [channelName, eventName, enabled, handleEvent, onReconnect]);
+
+  return { connectionState };
+}
+
+/**
+ * Hook to get Pusher connection state
+ */
+export function usePusherConnectionState() {
+  const [state, setState] = useState<string>('connecting');
+
+  useEffect(() => {
+    const handleChange = (newState: string) => setState(newState);
+    connectionChangeCallbacks.add(handleChange);
+
+    // Get initial state
+    if (sharedPusher) {
+      setState(sharedPusher.connection.state);
+    }
+
+    return () => {
+      connectionChangeCallbacks.delete(handleChange);
+    };
+  }, []);
+
+  return state;
 }
