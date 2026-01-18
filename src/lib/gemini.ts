@@ -1,124 +1,136 @@
-// Gemini API Integration for word generation
+// Word Bank - 1800+ words for Imposter game
+// Zero API calls, instant selection
 
-const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
-const GEMINI_API_URL = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent';
+import { randomInt } from 'crypto';
 
-// Word categories for variety
-const CATEGORIES = [
-    'common objects',
-    'animals',
-    'foods',
-    'professions',
-    'places',
-    'activities',
-    'household items',
-    'vehicles'
+const WORD_BANK = [
+    'CHAIR', 'TABLE', 'LAMP', 'BOOK', 'PEN', 'PENCIL', 'PAPER', 'PHONE', 'COMPUTER', 'MOUSE',
+    'KEYBOARD', 'SCREEN', 'DESK', 'SOFA', 'BED', 'PILLOW', 'BLANKET', 'MIRROR', 'CLOCK', 'WATCH',
+    'WALLET', 'KEYS', 'DOOR', 'WINDOW', 'CURTAIN', 'FLOOR', 'CEILING', 'WALL', 'ROOF', 'STAIRS',
+    'ELEVATOR', 'FAN', 'HEATER', 'REMOTE', 'BATTERY', 'CHARGER', 'CABLE', 'PLUG', 'SWITCH', 'LIGHT',
+    'CANDLE', 'FRAME', 'PAINTING', 'VASE', 'PLANT', 'FLOWER', 'POT', 'BUCKET', 'BASKET', 'BOX',
+    'BAG', 'BACKPACK', 'SUITCASE', 'UMBRELLA', 'HAT', 'CAP', 'HELMET', 'GLASSES', 'SUNGLASSES', 'SCARF',
+    'GLOVES', 'SHOES', 'BOOTS', 'SANDALS', 'SOCKS', 'SHIRT', 'PANTS', 'DRESS', 'SKIRT', 'JACKET',
+    'COAT', 'SWEATER', 'TIE', 'BELT', 'RING', 'NECKLACE', 'BRACELET', 'EARRING', 'BROOCH', 'PIN',
+    'BUTTON', 'ZIPPER', 'NEEDLE', 'THREAD', 'SCISSORS', 'KNIFE', 'FORK', 'SPOON', 'PLATE', 'BOWL',
+    'CUP', 'GLASS', 'MUG', 'BOTTLE', 'JAR', 'CAN', 'CONTAINER', 'LID', 'OPENER', 'CUTTER',
+    'NAPKIN', 'TOWEL', 'TISSUE', 'SOAP', 'SHAMPOO', 'TOOTHBRUSH', 'TOOTHPASTE', 'COMB', 'BRUSH', 'RAZOR',
+    'PERFUME', 'LOTION', 'CREAM', 'POWDER', 'LIPSTICK', 'MASCARA', 'EYELINER', 'BLUSH', 'FOUNDATION', 'NAIL',
+    'POLISH', 'FILE', 'CLIPPERS', 'TWEEZERS', 'COTTON', 'SWAB', 'BANDAGE', 'MEDICINE', 'PILL', 'TABLET',
+    'STOVE', 'OVEN', 'MICROWAVE', 'FRIDGE', 'FREEZER', 'BLENDER', 'MIXER', 'TOASTER', 'KETTLE', 'PAN',
+    'WOK', 'GRILL', 'SPATULA', 'LADLE', 'WHISK', 'GRATER', 'PEELER', 'MASHER', 'STRAINER', 'COLANDER',
+    'CABINET', 'DRAWER', 'SHELF', 'PANTRY', 'SINK', 'FAUCET', 'DRAIN', 'SPONGE', 'SCRUBBER', 'DETERGENT',
+    'DISH', 'RACK', 'TRAY', 'PLATTER', 'TEAPOT', 'COFFEEPOT', 'PITCHER', 'CARAFE', 'DECANTER', 'COASTER',
+    'PLACEMAT', 'TABLECLOTH', 'RUNNER', 'CANDELABRA', 'CENTERPIECE', 'DOILY', 'TRIVET', 'APRON', 'MITT', 'HOLDER',
+    'TIMER', 'SCALE', 'MEASURE', 'COOKIE', 'SHEET', 'ROLLER', 'FUNNEL', 'PROCESSOR',
+    'DOG', 'CAT', 'BIRD', 'FISH', 'HORSE', 'COW', 'PIG', 'SHEEP', 'GOAT', 'CHICKEN',
+    'DUCK', 'GOOSE', 'TURKEY', 'RABBIT', 'HAMSTER', 'MOUSE', 'RAT', 'GUINEA', 'FERRET', 'CHINCHILLA',
+    'SQUIRREL', 'CHIPMUNK', 'RACCOON', 'SKUNK', 'OPOSSUM', 'BEAVER', 'OTTER', 'MINK', 'WEASEL', 'BADGER',
+    'FOX', 'WOLF', 'COYOTE', 'BEAR', 'PANDA', 'KOALA', 'SLOTH', 'MONKEY', 'APE', 'GORILLA',
+    'CHIMPANZEE', 'ORANGUTAN', 'BABOON', 'LEMUR', 'LION', 'TIGER', 'LEOPARD', 'CHEETAH', 'JAGUAR', 'PANTHER',
+    'LYNX', 'BOBCAT', 'COUGAR', 'ELEPHANT', 'RHINO', 'HIPPO', 'GIRAFFE', 'ZEBRA', 'ANTELOPE', 'GAZELLE',
+    'DEER', 'ELK', 'MOOSE', 'CARIBOU', 'REINDEER', 'BISON', 'BUFFALO', 'YAK', 'CAMEL', 'LLAMA',
+    'ALPACA', 'KANGAROO', 'WALLABY', 'WOMBAT', 'PLATYPUS', 'ECHIDNA', 'SEAL', 'WALRUS', 'DOLPHIN', 'WHALE',
+    'SHARK', 'RAY', 'EEL', 'OCTOPUS', 'SQUID', 'JELLYFISH', 'STARFISH', 'CRAB', 'LOBSTER', 'SHRIMP',
+    'OYSTER', 'CLAM', 'MUSSEL', 'SNAIL', 'SLUG', 'WORM', 'CATERPILLAR', 'BUTTERFLY', 'MOTH', 'BEE',
+    'WASP', 'ANT', 'TERMITE', 'BEETLE', 'LADYBUG', 'FIREFLY', 'DRAGONFLY', 'GRASSHOPPER', 'CRICKET', 'MANTIS',
+    'SPIDER', 'SCORPION', 'CENTIPEDE', 'MILLIPEDE', 'EAGLE', 'HAWK', 'FALCON', 'OWL', 'CROW', 'RAVEN',
+    'PARROT', 'MACAW', 'COCKATOO', 'PARAKEET', 'CANARY', 'FINCH', 'SPARROW', 'ROBIN', 'BLUEBIRD', 'CARDINAL',
+    'WOODPECKER', 'HUMMINGBIRD', 'KINGFISHER', 'PELICAN', 'SEAGULL', 'ALBATROSS', 'PENGUIN', 'OSTRICH', 'EMU', 'PEACOCK',
+    'SWAN', 'FLAMINGO', 'HERON', 'CRANE', 'STORK', 'IBIS', 'VULTURE', 'CONDOR', 'PIGEON', 'DOVE',
+    'QUAIL', 'PHEASANT', 'GROUSE', 'PARTRIDGE', 'ROOSTER', 'HEN', 'CHICK', 'DUCKLING', 'GOSLING', 'CYGNET',
+    'TADPOLE', 'FROG', 'TOAD', 'NEWT', 'SALAMANDER', 'LIZARD', 'GECKO', 'IGUANA', 'CHAMELEON', 'SKINK',
+    'SNAKE', 'PYTHON', 'BOA', 'COBRA', 'VIPER', 'RATTLESNAKE', 'ANACONDA', 'TURTLE', 'TORTOISE', 'TERRAPIN',
+    'ALLIGATOR', 'CROCODILE', 'DINOSAUR', 'TREX', 'RAPTOR', 'TRICERATOPS', 'STEGOSAURUS', 'BRONTOSAURUS', 'PTERODACTYL', 'MAMMOTH',
+    'APPLE', 'BANANA', 'ORANGE', 'GRAPE', 'LEMON', 'LIME', 'CHERRY', 'STRAWBERRY', 'BLUEBERRY', 'RASPBERRY',
+    'BLACKBERRY', 'CRANBERRY', 'WATERMELON', 'CANTALOUPE', 'HONEYDEW', 'MANGO', 'PAPAYA', 'PINEAPPLE', 'PEACH', 'PLUM',
+    'PEAR', 'APRICOT', 'NECTARINE', 'KIWI', 'COCONUT', 'AVOCADO', 'TOMATO', 'CUCUMBER', 'CARROT', 'POTATO',
+    'ONION', 'GARLIC', 'GINGER', 'PEPPER', 'CHILI', 'LETTUCE', 'SPINACH', 'KALE', 'CABBAGE', 'BROCCOLI',
+    'CAULIFLOWER', 'CELERY', 'ASPARAGUS', 'ZUCCHINI', 'EGGPLANT', 'MUSHROOM', 'CORN', 'PEAS', 'BEANS', 'LENTILS',
+    'RICE', 'WHEAT', 'OATS', 'BARLEY', 'QUINOA', 'PASTA', 'NOODLES', 'BREAD', 'TOAST', 'BAGEL',
+    'MUFFIN', 'CROISSANT', 'DONUT', 'CAKE', 'COOKIE', 'BROWNIE', 'PIE', 'TART', 'CUPCAKE', 'PANCAKE',
+    'WAFFLE', 'CREPE', 'SCONE', 'BISCUIT', 'CRACKER', 'PRETZEL', 'CHIP', 'POPCORN', 'CANDY', 'CHOCOLATE',
+    'CARAMEL', 'FUDGE', 'TAFFY', 'GUMMY', 'MARSHMALLOW', 'JELLY', 'JAM', 'HONEY', 'SYRUP', 'SUGAR',
+    'SALT', 'VINEGAR', 'OIL', 'BUTTER', 'MARGARINE', 'CHEESE', 'MILK', 'CREAM', 'YOGURT', 'ICE',
+    'PIZZA', 'BURGER', 'HOTDOG', 'SANDWICH', 'TACO', 'BURRITO', 'QUESADILLA', 'NACHO', 'SALSA', 'GUACAMOLE',
+    'SUSHI', 'RAMEN', 'DUMPLING', 'WONTON', 'SPRING', 'ROLL', 'FRIED', 'CURRY', 'STEW', 'SOUP',
+    'CHOWDER', 'BISQUE', 'BROTH', 'GRAVY', 'SAUCE', 'KETCHUP', 'MUSTARD', 'MAYO', 'RELISH', 'PICKLE',
+    'OLIVE', 'CAPER', 'ANCHOVY', 'SARDINE', 'TUNA', 'SALMON', 'TROUT', 'BASS', 'COD', 'HALIBUT',
+    'TILAPIA', 'CATFISH', 'SWORDFISH', 'MACKEREL', 'HERRING', 'BACON', 'HAM', 'SAUSAGE', 'SALAMI', 'PEPPERONI',
+    'PROSCIUTTO', 'PASTRAMI', 'STEAK', 'CHOP', 'RIBS', 'BRISKET', 'MEATBALL', 'MEATLOAF', 'PATTY', 'NUGGET',
+    'DOCTOR', 'NURSE', 'SURGEON', 'DENTIST', 'PHARMACIST', 'THERAPIST', 'TEACHER', 'PROFESSOR', 'PRINCIPAL', 'TUTOR',
+    'LAWYER', 'JUDGE', 'ATTORNEY', 'PARALEGAL', 'ENGINEER', 'ARCHITECT', 'DESIGNER', 'ARTIST', 'PAINTER', 'SCULPTOR',
+    'MUSICIAN', 'SINGER', 'DANCER', 'ACTOR', 'DIRECTOR', 'PRODUCER', 'WRITER', 'AUTHOR', 'JOURNALIST', 'EDITOR',
+    'CHEF', 'COOK', 'BAKER', 'BARISTA', 'WAITER', 'BARTENDER', 'CASHIER', 'CLERK', 'MANAGER', 'SUPERVISOR',
+    'CEO', 'PRESIDENT', 'EXECUTIVE', 'ACCOUNTANT', 'BANKER', 'TRADER', 'BROKER', 'ANALYST', 'CONSULTANT',
+    'PROGRAMMER', 'DEVELOPER', 'CODER', 'HACKER', 'ADMIN', 'TECHNICIAN', 'MECHANIC', 'ELECTRICIAN', 'PLUMBER', 'CARPENTER',
+    'MASON', 'WELDER', 'ROOFER', 'GLAZIER', 'TILER', 'PLASTERER', 'CLEANER', 'JANITOR', 'MAID', 'BUTLER',
+    'LANDSCAPER', 'FARMER', 'RANCHER', 'FISHER', 'HUNTER', 'MINER', 'LOGGER', 'DRIVER', 'PILOT', 'CAPTAIN',
+    'SAILOR', 'SOLDIER', 'MARINE', 'AIRMAN', 'OFFICER', 'DETECTIVE', 'INVESTIGATOR', 'AGENT', 'SPY', 'GUARD',
+    'BOUNCER', 'FIREFIGHTER', 'PARAMEDIC', 'LIFEGUARD', 'RESCUER', 'SCIENTIST', 'RESEARCHER', 'CHEMIST', 'BIOLOGIST', 'PHYSICIST',
+    'ASTRONOMER', 'GEOLOGIST', 'METEOROLOGIST', 'VETERINARIAN', 'ZOOLOGIST', 'BOTANIST', 'ECOLOGIST', 'PSYCHOLOGIST', 'PSYCHIATRIST', 'COUNSELOR',
+    'LIBRARIAN', 'CURATOR', 'ARCHIVIST', 'PHOTOGRAPHER', 'VIDEOGRAPHER', 'FILMMAKER', 'ANIMATOR', 'ILLUSTRATOR', 'GRAPHIC', 'FASHION',
+    'BARBER', 'HAIRSTYLIST', 'BEAUTICIAN', 'MANICURIST', 'MASSAGE', 'YOGA', 'TRAINER', 'COACH', 'REFEREE', 'UMPIRE',
+    'ATHLETE', 'PLAYER', 'RUNNER', 'SWIMMER', 'CYCLIST', 'GYMNAST', 'BOXER', 'WRESTLER', 'MARTIAL',
+    'ASTRONAUT', 'COSMONAUT', 'EXPLORER', 'ADVENTURER', 'MOUNTAINEER', 'DIVER', 'SURFER', 'SKIER', 'SNOWBOARDER', 'SKATER',
+    'MAGICIAN', 'ILLUSIONIST', 'CLOWN', 'JUGGLER', 'ACROBAT', 'MIME', 'VENTRILOQUIST', 'COMEDIAN', 'HOST',
+    'ANNOUNCER', 'ANCHOR', 'REPORTER', 'CORRESPONDENT', 'CRITIC', 'REVIEWER', 'BLOGGER', 'INFLUENCER', 'STREAMER', 'YOUTUBER',
+    'BEACH', 'OCEAN', 'SEA', 'LAKE', 'RIVER', 'STREAM', 'POND', 'WATERFALL', 'MOUNTAIN', 'HILL',
+    'VALLEY', 'CANYON', 'CLIFF', 'CAVE', 'FOREST', 'JUNGLE', 'DESERT', 'ISLAND', 'PENINSULA', 'COAST',
+    'PARK', 'GARDEN', 'PLAYGROUND', 'ZOO', 'AQUARIUM', 'MUSEUM', 'GALLERY', 'THEATER', 'CINEMA', 'STADIUM',
+    'ARENA', 'FIELD', 'COURT', 'TRACK', 'POOL', 'GYM', 'SCHOOL', 'COLLEGE', 'UNIVERSITY', 'LIBRARY',
+    'HOSPITAL', 'CLINIC', 'PHARMACY', 'MALL', 'SHOP', 'STORE', 'MARKET', 'BAKERY', 'DELI', 'CAFE',
+    'RESTAURANT', 'BAR', 'PUB', 'CLUB', 'HOTEL', 'MOTEL', 'RESORT', 'SPA', 'SALON',
+    'OFFICE', 'FACTORY', 'WAREHOUSE', 'WORKSHOP', 'STUDIO', 'LAB', 'STATION', 'TERMINAL', 'AIRPORT', 'TRAIN',
+    'BUS', 'SUBWAY', 'TAXI', 'PARKING', 'GARAGE', 'TOLL', 'BRIDGE', 'TUNNEL', 'ROAD', 'STREET',
+    'AVENUE', 'BOULEVARD', 'LANE', 'ALLEY', 'PATH', 'TRAIL', 'SIDEWALK', 'CROSSWALK', 'INTERSECTION', 'ROUNDABOUT',
+    'CITY', 'TOWN', 'VILLAGE', 'HAMLET', 'SUBURB', 'DISTRICT', 'NEIGHBORHOOD', 'BLOCK', 'SQUARE', 'PLAZA',
+    'CAR', 'TRUCK', 'VAN', 'SUV', 'JEEP', 'SEDAN', 'COUPE', 'CONVERTIBLE', 'HATCHBACK', 'WAGON',
+    'BUS', 'MINIBUS', 'COACH', 'TROLLEY', 'TRAM', 'SUBWAY', 'METRO', 'MONORAIL', 'LOCOMOTIVE',
+    'BICYCLE', 'BIKE', 'MOTORCYCLE', 'SCOOTER', 'MOPED', 'VESPA', 'TRICYCLE', 'SKATEBOARD', 'HOVERBOARD',
+    'BOAT', 'SHIP', 'YACHT', 'SAILBOAT', 'CATAMARAN', 'CANOE', 'KAYAK', 'RAFT', 'ROWBOAT', 'GONDOLA',
+    'FERRY', 'CRUISE', 'LINER', 'TANKER', 'CARGO', 'BARGE', 'TUG', 'SUBMARINE',
+    'PLANE', 'AIRPLANE', 'JET', 'FIGHTER', 'BOMBER', 'HELICOPTER', 'CHOPPER', 'GLIDER', 'BALLOON', 'BLIMP',
+    'ZEPPELIN', 'ROCKET', 'SHUTTLE', 'SPACESHIP', 'SPACECRAFT', 'SATELLITE', 'PROBE', 'ROVER', 'LANDER', 'CAPSULE',
+    'TANK', 'ARMORED', 'HUMVEE', 'AMBULANCE', 'FIRETRUCK', 'POLICE', 'LIMO', 'LIMOUSINE',
+    'TRACTOR', 'HARVESTER', 'COMBINE', 'PLOW', 'TRAILER', 'CARAVAN', 'MOTORHOME', 'CAMPER', 'FORKLIFT',
+    'CRANE', 'BULLDOZER', 'EXCAVATOR', 'BACKHOE', 'LOADER', 'GRADER', 'COMPACTOR',
+    'SUN', 'MOON', 'STAR', 'PLANET', 'COMET', 'METEOR', 'ASTEROID', 'GALAXY', 'NEBULA',
+    'CLOUD', 'RAIN', 'SNOW', 'HAIL', 'SLEET', 'FROST', 'DEW', 'FOG', 'MIST', 'DRIZZLE',
+    'STORM', 'THUNDER', 'LIGHTNING', 'TORNADO', 'HURRICANE', 'TYPHOON', 'CYCLONE', 'BLIZZARD',
+    'WIND', 'BREEZE', 'GUST', 'DRAFT', 'WHIRLWIND', 'DUST', 'SANDSTORM', 'RAINBOW', 'AURORA', 'ECLIPSE',
+    'SUNRISE', 'SUNSET', 'DAWN', 'DUSK', 'TWILIGHT', 'NOON', 'MIDNIGHT', 'SEASON', 'SPRING', 'SUMMER',
+    'AUTUMN', 'FALL', 'WINTER', 'CLIMATE', 'WEATHER', 'TEMPERATURE', 'HEAT', 'COLD', 'WARM', 'COOL',
+    'TREE', 'BUSH', 'SHRUB', 'GRASS', 'WEED', 'MOSS', 'FERN', 'VINE', 'IVY', 'BAMBOO',
+    'CACTUS', 'PALM', 'PINE', 'FIR', 'SPRUCE', 'CEDAR', 'REDWOOD', 'SEQUOIA', 'OAK',
+    'MAPLE', 'BIRCH', 'WILLOW', 'ELM', 'ASH', 'BEECH',
+    'ROSE', 'TULIP', 'DAISY', 'LILY', 'ORCHID', 'SUNFLOWER', 'DAFFODIL', 'CARNATION', 'PEONY', 'IRIS',
+    'LAVENDER', 'JASMINE', 'HIBISCUS', 'MAGNOLIA', 'AZALEA',
+    'ROCK', 'STONE', 'PEBBLE', 'BOULDER', 'GRAVEL', 'SAND', 'DIRT', 'MUD', 'CLAY', 'SOIL',
+    'MINERAL', 'CRYSTAL', 'GEM', 'DIAMOND', 'RUBY', 'EMERALD', 'SAPPHIRE', 'TOPAZ', 'AMETHYST', 'QUARTZ',
+    'GOLD', 'SILVER', 'COPPER', 'BRONZE', 'IRON', 'STEEL', 'ALUMINUM', 'TITANIUM', 'PLATINUM',
+    'FOOTBALL', 'SOCCER', 'BASKETBALL', 'BASEBALL', 'TENNIS', 'GOLF', 'HOCKEY', 'VOLLEYBALL', 'RUGBY', 'CRICKET',
+    'BADMINTON', 'PINGPONG', 'SQUASH', 'HANDBALL', 'POLO', 'LACROSSE', 'BOWLING', 'BILLIARDS', 'POOL',
+    'DARTS', 'ARCHERY', 'FENCING', 'BOXING', 'WRESTLING', 'JUDO', 'KARATE', 'TAEKWONDO',
+    'SWIMMING', 'DIVING', 'SURFING', 'SKIING', 'SNOWBOARDING', 'SKATING', 'FIGURE', 'SPEED', 'GYMNASTICS',
+    'MARATHON', 'SPRINT', 'HURDLE', 'RELAY', 'JUMP', 'HIGH', 'TRIPLE', 'POLE',
+    'CHESS', 'CHECKERS', 'BACKGAMMON', 'MAHJONG', 'DOMINOES', 'SCRABBLE', 'MONOPOLY', 'POKER', 'BLACKJACK',
+    'PUZZLE', 'JIGSAW', 'RUBIK', 'CUBE', 'LEGO', 'BLOCKS', 'CARDS', 'DICE',
+    'COMPUTER', 'LAPTOP', 'TABLET', 'SMARTPHONE', 'SMARTWATCH', 'FITNESS', 'TRACKER', 'HEADPHONES',
+    'SPEAKER', 'MICROPHONE', 'CAMERA', 'WEBCAM', 'PRINTER', 'SCANNER', 'MONITOR', 'DISPLAY', 'PROJECTOR',
+    'DRONE', 'ROBOT', 'HEADSET', 'SMART', 'HOME', 'ALEXA', 'SIRI', 'GOOGLE', 'ASSISTANT',
+    'ROUTER', 'MODEM', 'WIFI', 'ETHERNET', 'BLUETOOTH', 'USB', 'HDMI',
+    'INTERNET', 'WEB', 'BROWSER', 'WEBSITE', 'APP', 'SOFTWARE', 'PROGRAM', 'CODE', 'ALGORITHM', 'DATABASE',
+    'PIANO', 'ORGAN', 'SYNTHESIZER', 'GUITAR', 'ELECTRIC', 'ACOUSTIC', 'BASS', 'UKULELE', 'BANJO',
+    'VIOLIN', 'VIOLA', 'CELLO', 'FIDDLE', 'TRUMPET', 'TROMBONE', 'TUBA', 'SAXOPHONE', 'CLARINET', 'OBOE',
+    'FLUTE', 'HARMONICA', 'ACCORDION', 'BAGPIPES', 'DRUMS', 'CYMBAL', 'BONGO', 'CONGA', 'TAMBOURINE',
+    'XYLOPHONE', 'MARIMBA', 'BELLS', 'CHIMES', 'ADVENTURE', 'MYSTERY', 'COMEDY', 'DRAMA', 'THRILLER', 'HORROR'
 ];
 
-// Fallback words in case API fails
-const FALLBACK_WORDS = [
-    'ELEPHANT', 'PIZZA', 'DOCTOR', 'GUITAR', 'BEACH',
-    'DANCING', 'TELEPHONE', 'BICYCLE', 'ASTRONAUT', 'RAINBOW',
-    'UMBRELLA', 'PENGUIN', 'SPAGHETTI', 'FIREMAN', 'LIBRARY',
-    'SWIMMING', 'TOASTER', 'HELICOPTER', 'MAGICIAN', 'VOLCANO'
-];
-
-export async function generateWord(): Promise<string> {
-    // Race between actual generation and 10-second timeout
-    return Promise.race([
-        generateWordInternal(),
-        timeoutPromise(10000)
-    ]).catch((error) => {
-        console.error('Word generation failed or timed out:', error);
-        return getRandomFallbackWord();
-    });
+export function generateWord(): string {
+    return WORD_BANK[randomInt(0, WORD_BANK.length)];
 }
 
-async function generateWordInternal(): Promise<string> {
-    // If no API key, use fallback
-    if (!GEMINI_API_KEY) {
-        console.warn('GEMINI_API_KEY not set, using fallback words');
-        return getRandomFallbackWord();
-    }
-
-    try {
-        const category = CATEGORIES[Math.floor(Math.random() * CATEGORIES.length)];
-
-        const response = await fetch(`${GEMINI_API_URL}?key=${GEMINI_API_KEY}`, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-                contents: [{
-                    parts: [{
-                        text: `Generate ONE random word from the category "${category}" for a word guessing party game. 
-                   Requirements:
-                   - Single word only (no phrases)
-                   - Common enough that most people would know it
-                   - Easy to describe or act out
-                   - Not offensive
-                   - All uppercase letters
-                   
-                   Respond with ONLY the word, nothing else.`
-                    }]
-                }],
-                generationConfig: {
-                    temperature: 1.0,
-                    maxOutputTokens: 20,
-                }
-            }),
-        });
-
-        if (!response.ok) {
-            console.error('Gemini API error:', response.status);
-            return getRandomFallbackWord();
-        }
-
-        const data = await response.json();
-
-        // Extract word from response
-        const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
-
-        if (!text) {
-            return getRandomFallbackWord();
-        }
-
-        // Clean up the response - extract just the word
-        const word = text.trim().toUpperCase().replace(/[^A-Z]/g, '');
-
-        if (word.length < 3 || word.length > 15) {
-            return getRandomFallbackWord();
-        }
-
-        return word;
-    } catch (error) {
-        console.error('Failed to generate word from Gemini:', error);
-        return getRandomFallbackWord();
-    }
-}
-
-// Timeout helper
-function timeoutPromise(ms: number): Promise<never> {
-    return new Promise((_, reject) => {
-        setTimeout(() => reject(new Error(`Timeout after ${ms}ms`)), ms);
-    });
-}
-
-function getRandomFallbackWord(): string {
-    return FALLBACK_WORDS[Math.floor(Math.random() * FALLBACK_WORDS.length)];
-}
-
-// Test function
-export async function testGeminiConnection(): Promise<boolean> {
-    if (!GEMINI_API_KEY) {
-        return false;
-    }
-
-    try {
-        const word = await generateWord();
-        return word.length > 0;
-    } catch {
-        return false;
-    }
+export function getWordBankSize(): number {
+    return WORD_BANK.length;
 }
