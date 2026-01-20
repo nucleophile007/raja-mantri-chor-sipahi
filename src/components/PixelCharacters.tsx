@@ -1,94 +1,44 @@
 // Pixel art character components for RMCS game
+import Image from 'next/image';
 
 export const PixelRaja = ({ size = 64 }: { size?: number }) => (
-  <svg width={size} height={size} viewBox="0 0 16 16" style={{ imageRendering: 'pixelated' }}>
-    {/* Crown */}
-    <rect x="4" y="2" width="2" height="2" fill="#FFD700" />
-    <rect x="6" y="1" width="4" height="2" fill="#FFD700" />
-    <rect x="10" y="2" width="2" height="2" fill="#FFD700" />
-    {/* Head */}
-    <rect x="5" y="3" width="6" height="5" fill="#FDB797" />
-    {/* Eyes */}
-    <rect x="6" y="5" width="1" height="1" fill="#001858" />
-    <rect x="9" y="5" width="1" height="1" fill="#001858" />
-    {/* Body */}
-    <rect x="4" y="8" width="8" height="5" fill="#8B4513" />
-    {/* Arms */}
-    <rect x="3" y="9" width="1" height="3" fill="#FDB797" />
-    <rect x="12" y="9" width="1" height="3" fill="#FDB797" />
-    {/* Legs */}
-    <rect x="5" y="13" width="2" height="3" fill="#654321" />
-    <rect x="9" y="13" width="2" height="3" fill="#654321" />
-  </svg>
+  <Image
+    src="/characters/raja.png"
+    alt="Raja"
+    width={size}
+    height={size}
+    style={{ imageRendering: 'pixelated' }}
+  />
 );
 
 export const PixelMantri = ({ size = 64 }: { size?: number }) => (
-  <svg width={size} height={size} viewBox="0 0 16 16" style={{ imageRendering: 'pixelated' }}>
-    {/* Turban */}
-    <rect x="4" y="1" width="8" height="3" fill="#FF6B6B" />
-    <rect x="5" y="2" width="1" height="1" fill="#FFD700" />
-    {/* Head */}
-    <rect x="5" y="4" width="6" height="4" fill="#FDB797" />
-    {/* Eyes */}
-    <rect x="6" y="6" width="1" height="1" fill="#001858" />
-    <rect x="9" y="6" width="1" height="1" fill="#001858" />
-    {/* Mustache */}
-    <rect x="5" y="7" width="2" height="1" fill="#000000" />
-    <rect x="9" y="7" width="2" height="1" fill="#000000" />
-    {/* Body */}
-    <rect x="4" y="8" width="8" height="5" fill="#4ECDC4" />
-    {/* Arms */}
-    <rect x="3" y="9" width="1" height="3" fill="#FDB797" />
-    <rect x="12" y="9" width="1" height="3" fill="#FDB797" />
-    {/* Legs */}
-    <rect x="5" y="13" width="2" height="3" fill="#2C3E50" />
-    <rect x="9" y="13" width="2" height="3" fill="#2C3E50" />
-  </svg>
+  <Image
+    src="/characters/mantri.png"
+    alt="Mantri"
+    width={size}
+    height={size}
+    style={{ imageRendering: 'pixelated' }}
+  />
 );
 
 export const PixelChor = ({ size = 64 }: { size?: number }) => (
-  <svg width={size} height={size} viewBox="0 0 16 16" style={{ imageRendering: 'pixelated' }}>
-    {/* Mask */}
-    <rect x="4" y="2" width="8" height="4" fill="#000000" />
-    <rect x="6" y="4" width="1" height="1" fill="#FFFFFF" />
-    <rect x="9" y="4" width="1" height="1" fill="#FFFFFF" />
-    {/* Head */}
-    <rect x="5" y="6" width="6" height="2" fill="#FDB797" />
-    {/* Body - striped shirt */}
-    <rect x="4" y="8" width="8" height="1" fill="#000000" />
-    <rect x="4" y="9" width="8" height="1" fill="#FFFFFF" />
-    <rect x="4" y="10" width="8" height="1" fill="#000000" />
-    <rect x="4" y="11" width="8" height="1" fill="#FFFFFF" />
-    <rect x="4" y="12" width="8" height="1" fill="#000000" />
-    {/* Arms */}
-    <rect x="3" y="9" width="1" height="3" fill="#FDB797" />
-    <rect x="12" y="9" width="1" height="3" fill="#FDB797" />
-    {/* Legs */}
-    <rect x="5" y="13" width="2" height="3" fill="#000000" />
-    <rect x="9" y="13" width="2" height="3" fill="#000000" />
-  </svg>
+  <Image
+    src="/characters/chor.png"
+    alt="Chor"
+    width={size}
+    height={size}
+    style={{ imageRendering: 'pixelated' }}
+  />
 );
 
 export const PixelSipahi = ({ size = 64 }: { size?: number }) => (
-  <svg width={size} height={size} viewBox="0 0 16 16" style={{ imageRendering: 'pixelated' }}>
-    {/* Helmet */}
-    <rect x="4" y="1" width="8" height="3" fill="#708090" />
-    <rect x="7" y="1" width="2" height="1" fill="#FF0000" />
-    {/* Head */}
-    <rect x="5" y="4" width="6" height="4" fill="#FDB797" />
-    {/* Eyes */}
-    <rect x="6" y="6" width="1" height="1" fill="#001858" />
-    <rect x="9" y="6" width="1" height="1" fill="#001858" />
-    {/* Body - uniform */}
-    <rect x="4" y="8" width="8" height="5" fill="#228B22" />
-    <rect x="7" y="9" width="2" height="3" fill="#FFD700" />
-    {/* Arms */}
-    <rect x="3" y="9" width="1" height="3" fill="#FDB797" />
-    <rect x="12" y="9" width="1" height="3" fill="#FDB797" />
-    {/* Legs */}
-    <rect x="5" y="13" width="2" height="3" fill="#2C3E50" />
-    <rect x="9" y="13" width="2" height="3" fill="#2C3E50" />
-  </svg>
+  <Image
+    src="/characters/sipahi.png"
+    alt="Sipahi"
+    width={size}
+    height={size}
+    style={{ imageRendering: 'pixelated' }}
+  />
 );
 
 export const PixelQuestionMark = ({ size = 64 }: { size?: number }) => (
