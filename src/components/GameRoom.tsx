@@ -221,6 +221,16 @@ export default function GameRoom({ gameToken }: GameRoomProps) {
     return () => clearInterval(intervalId);
   }, [gameToken, playerId]);
 
+  // Auto-show modal for Mantri during guessing phase
+  useEffect(() => {
+    if (gameState?.gameStatus === 'MANTRI_GUESSING' && isMantri) {
+      setShowMantriModal(true);
+      setSelectedPlayer(null); // Reset selection when modal opens
+    } else {
+      setShowMantriModal(false);
+    }
+  }, [gameState?.gameStatus, isMantri]);
+
   const handlePusherUpdate = useCallback((newState: GameState) => {
     const currentPlayerStillInGame = newState.players.find(p => p.id === playerId);
 
@@ -897,17 +907,17 @@ export default function GameRoom({ gameToken }: GameRoomProps) {
           </div>
         )}
 
-        {/* Chit Mix Animation Overlay - renders on top of pre-loaded UI */}
+        {/* Chit Mix Animation Overlay - floats above skeleton background */}
         {showChitAnimation && (
-          <div className="fixed inset-0 bg-black bg-opacity-80 z-50 flex items-center justify-center p-4">
-            <div className="w-full max-w-2xl">
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 pointer-events-none">
+            <div className="w-full max-w-2xl pointer-events-auto">
               <ChitMixAnimation onComplete={handleChitAnimationComplete} autoPlay={true} />
             </div>
           </div>
         )}
 
-        {/* Loading Skeleton during distribution */}
-        {showChitAnimation && (
+        {/* Loading Skeleton during and after distribution until character loads */}
+        {(showChitAnimation || (gameState.gameStatus === 'DISTRIBUTING')) && (
           <div className="space-y-4">
             <div className="pixel-card p-6">
               <h2 className="pixel-text mb-4" style={{ color: 'var(--pixel-dark)' }}>Your Character</h2>
