@@ -42,6 +42,7 @@ export default function GameRoom({ gameToken }: GameRoomProps) {
   const resultsCardRef = useRef<HTMLDivElement>(null);
   const [showJoinForm, setShowJoinForm] = useState(false);
   const [joinPlayerName, setJoinPlayerName] = useState('');
+  const [gameEndCountdown, setGameEndCountdown] = useState(15);
 
   // Detect mobile device
   useEffect(() => {
@@ -456,6 +457,67 @@ export default function GameRoom({ gameToken }: GameRoomProps) {
     setShowChitAnimation(false);
   }, []);
 
+  // Auto-transition to GAME_END after showing final round result
+  useEffect(() => {
+    if (gameState?.gameStatus === 'ROUND_END' &&
+      gameState.currentRound >= gameState.maxRounds &&
+      isHost) {
+      const timer = setTimeout(async () => {
+        try {
+          const response = await fetch('/api/game/next-round', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ gameToken, playerId })
+          });
+
+          const data = await response.json();
+          if (!data.success) {
+            console.error('Failed to transition to final results');
+          }
+        } catch (err) {
+          console.error('Error transitioning to final results:', err);
+        }
+      }, 6000); // Show round result for 6 seconds
+
+      return () => clearTimeout(timer);
+    }
+  }, [gameState?.gameStatus, gameState?.currentRound, gameState?.maxRounds, isHost, gameToken, playerId]);
+
+  // Auto-terminate game after showing final results
+  useEffect(() => {
+    if (gameState?.gameStatus === 'GAME_END') {
+      setGameEndCountdown(15);
+
+      const countdownInterval = setInterval(() => {
+        setGameEndCountdown(prev => {
+          if (prev <= 1) {
+            clearInterval(countdownInterval);
+            return 0;
+          }
+          return prev - 1;
+        });
+      }, 1000);
+
+      const redirectTimer = setTimeout(() => {
+        localStorage.removeItem('playerId');
+        localStorage.removeItem('gameToken');
+        router.push('/');
+      }, 15000);
+
+      return () => {
+        clearInterval(countdownInterval);
+        clearTimeout(redirectTimer);
+      };
+    }
+  }, [gameState?.gameStatus, router]);
+
+  // Handle manual leave from final results
+  const handleLeaveNow = useCallback(() => {
+    localStorage.removeItem('playerId');
+    localStorage.removeItem('gameToken');
+    router.push('/');
+  }, [router]);
+
   // Handle join from link
   const handleJoinFromLink = useCallback(async () => {
     if (!joinPlayerName.trim()) {
@@ -792,6 +854,31 @@ export default function GameRoom({ gameToken }: GameRoomProps) {
           </div>
         )}
 
+        {/* Loading Skeleton during distribution */}
+        {showChitAnimation && (
+          <div className="space-y-4">
+            <div className="pixel-card p-6">
+              <h2 className="pixel-text mb-4" style={{ color: 'var(--pixel-dark)' }}>Your Character</h2>
+              <div className="pixel-card p-6 text-center" style={{ background: 'linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%)', backgroundSize: '200% 100%', animation: 'shimmer 1.5s infinite' }}>
+                <div style={{ width: '96px', height: '96px', margin: '0 auto', background: '#ddd' }}></div>
+                <p style={{ height: '24px', marginTop: '8px', background: '#ddd', width: '120px', margin: '8px auto' }}></p>
+              </div>
+            </div>
+
+            <div className="pixel-card p-6">
+              <h2 className="pixel-text mb-4" style={{ color: 'var(--pixel-dark)' }}>Players</h2>
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                {[1, 2, 3, 4].map(i => (
+                  <div key={i} className="pixel-player-slot" style={{ background: 'linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%)', backgroundSize: '200% 100%', animation: 'shimmer 1.5s infinite' }}>
+                    <div style={{ width: '48px', height: '48px', margin: '0 auto', background: '#ddd' }}></div>
+                    <div style={{ height: '16px', marginTop: '8px', background: '#ddd' }}></div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* King Revealed / Mantri Guessing - Pre-renders during animation for instant display */}
         {(gameState.gameStatus === 'KING_REVEALED' || gameState.gameStatus === 'MANTRI_GUESSING' ||
           (showChitAnimation && gameState.players.some(p => p.character))) && (
@@ -833,7 +920,7 @@ export default function GameRoom({ gameToken }: GameRoomProps) {
                           ? 'transform scale-105'
                           : ''
                           } ${isMantri && player.id !== playerId && player.character !== 'RAJA' && player.character !== 'MANTRI'
-                            ? 'cursor-pointer hover:transform hover:scale-105'
+                            ? 'cursor-pointer hover:transform hover:scale-105 pixel-selectable-pulse'
                             : ''
                           } ${showCharacter && player.character ? characterCardClasses[player.character] : ''}`}
                         style={selectedPlayer === player.id ? { borderColor: 'var(--pixel-primary)', borderWidth: '6px' } : {}}
@@ -955,6 +1042,22 @@ export default function GameRoom({ gameToken }: GameRoomProps) {
         {/* Game End */}
         {gameState.gameStatus === 'GAME_END' && (
           <div className="pixel-card p-6">
+            {/* Countdown Banner */}
+            <div className="pixel-card p-4 mb-6" style={{ background: 'var(--pixel-warning)', border: '4px solid var(--pixel-dark)' }}>
+              <div className="flex flex-col md:flex-row items-center justify-between gap-3">
+                <p className="font-bold" style={{ color: 'var(--pixel-dark)' }}>
+                  ⏱️ Returning to arcade in {gameEndCountdown} seconds...
+                </p>
+                <button
+                  onClick={handleLeaveNow}
+                  className="pixel-btn text-sm"
+                  style={{ background: 'var(--pixel-danger)', color: 'white' }}
+                >
+                  🚪 Leave Now
+                </button>
+              </div>
+            </div>
+
             <h2 className="pixel-text-xl mb-6 text-center" style={{ color: 'var(--pixel-dark)' }}>🏆 Game Over!</h2>
 
             {/* Hidden card for image generation - uses explicit colors for html2canvas */}

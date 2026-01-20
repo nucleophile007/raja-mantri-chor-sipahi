@@ -57,12 +57,9 @@ export async function POST(request: NextRequest) {
     game.roundHistory.push(roundResult);
     game.players = updatedPlayers;
 
-    // Check if this was the final round - if so, automatically end the game
-    if (game.currentRound >= game.maxRounds) {
-      game.gameStatus = 'GAME_END';
-    } else {
-      game.gameStatus = 'ROUND_END';
-    }
+    // Always show ROUND_END first, even for last round
+    // Frontend will auto-transition to GAME_END if it's the final round
+    game.gameStatus = 'ROUND_END';
 
     await updateGame(gameToken.toUpperCase(), game);
 
@@ -72,8 +69,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({
       success: true,
       isCorrect,
-      gameState: game,
-      gameEnded: game.gameStatus === 'GAME_END'
+      gameState: game
     });
   } catch (error) {
     console.error('Error processing guess:', error);
