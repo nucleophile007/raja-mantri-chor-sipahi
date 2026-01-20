@@ -42,7 +42,8 @@ export default function GameRoom({ gameToken }: GameRoomProps) {
   const resultsCardRef = useRef<HTMLDivElement>(null);
   const [showJoinForm, setShowJoinForm] = useState(false);
   const [joinPlayerName, setJoinPlayerName] = useState('');
-  const [gameEndCountdown, setGameEndCountdown] = useState(15);
+  const [gameEndCountdown, setGameEndCountdown] = useState(20 * 60); // 20 minutes
+  const [showMantriModal, setShowMantriModal] = useState(false);
 
   // Detect mobile device
   useEffect(() => {
@@ -457,11 +458,11 @@ export default function GameRoom({ gameToken }: GameRoomProps) {
     setShowChitAnimation(false);
   }, []);
 
-  // Auto-transition to GAME_END after showing final round result
+  // Auto-transition to GAME_END after showing final round result (ALL PLAYERS INDEPENDENTLY)
   useEffect(() => {
     if (gameState?.gameStatus === 'ROUND_END' &&
-      gameState.currentRound >= gameState.maxRounds &&
-      isHost) {
+      gameState.currentRound >= gameState.maxRounds) {
+      // All players independently transition after 6 seconds
       const timer = setTimeout(async () => {
         try {
           const response = await fetch('/api/game/next-round', {
@@ -481,12 +482,12 @@ export default function GameRoom({ gameToken }: GameRoomProps) {
 
       return () => clearTimeout(timer);
     }
-  }, [gameState?.gameStatus, gameState?.currentRound, gameState?.maxRounds, isHost, gameToken, playerId]);
+  }, [gameState?.gameStatus, gameState?.currentRound, gameState?.maxRounds, gameToken, playerId]);
 
-  // Auto-terminate game after showing final results
+  // Auto-delete game after 20 minutes of showing final results
   useEffect(() => {
     if (gameState?.gameStatus === 'GAME_END') {
-      setGameEndCountdown(15);
+      setGameEndCountdown(20 * 60); // 20 minutes in seconds
 
       const countdownInterval = setInterval(() => {
         setGameEndCountdown(prev => {
@@ -502,7 +503,7 @@ export default function GameRoom({ gameToken }: GameRoomProps) {
         localStorage.removeItem('playerId');
         localStorage.removeItem('gameToken');
         router.push('/');
-      }, 15000);
+      }, 20 * 60 * 1000); // 20 minutes
 
       return () => {
         clearInterval(countdownInterval);
@@ -633,6 +634,57 @@ export default function GameRoom({ gameToken }: GameRoomProps) {
 
   return (
     <div className="min-h-screen pixel-grid p-4" style={{ background: 'var(--pixel-bg)' }}>
+      {/* Mantri Selection Modal */}
+      {showMantriModal && isMantri && (
+        <div className="fixed inset-0 bg-black bg-opacity-70 z-50 flex items-center justify-center p-4">
+          <div className="pixel-card p-8 max-w-md w-full">
+            <h2 className="pixel-text-lg text-center mb-6" style={{ color: 'var(--pixel-dark)' }}>
+              🎯 GUESS THE CHOR!
+            </h2>
+
+            <div className="grid grid-cols-2 gap-4 mb-6">
+              {gameState.players
+                .filter(p => p.id !== playerId && p.character !== 'RAJA' && p.character !== 'MANTRI')
+                .map(player => (
+                  <div
+                    key={player.id}
+                    onClick={() => setSelectedPlayer(player.id)}
+                    className={`pixel-card p-6 cursor-pointer hover:scale-105 transition-transform ${selectedPlayer === player.id ? 'ring-4 ring-primary' : ''
+                      }`}
+                    style={selectedPlayer === player.id ? { borderColor: 'var(--pixel-primary)', borderWidth: '6px' } : {}}
+                  >
+                    <div className="text-5xl text-center mb-3">👤</div>
+                    <p className="pixel-text text-center font-bold" style={{ color: 'var(--pixel-dark)' }}>
+                      {player.name}
+                    </p>
+                  </div>
+                ))}
+            </div>
+
+            <button
+              onClick={() => {
+                if (selectedPlayer) {
+                  handleMantriGuess();
+                  setShowMantriModal(false);
+                }
+              }}
+              disabled={!selectedPlayer || loading}
+              className="w-full pixel-btn pixel-btn-accent"
+              style={{ opacity: !selectedPlayer || loading ? 0.5 : 1 }}
+            >
+              {loading ? (
+                <span className="flex items-center justify-center gap-2">
+                  <div className="pixel-spinner"></div>
+                  Confirming...
+                </span>
+              ) : (
+                '✓ Confirm Guess'
+              )}
+            </button>
+          </div>
+        </div>
+      )}
+
       <div className="max-w-4xl mx-auto">
         {/* Header */}
         <div className="pixel-card p-6 mb-4">
@@ -911,19 +963,7 @@ export default function GameRoom({ gameToken }: GameRoomProps) {
                     return (
                       <div
                         key={player.id}
-                        onClick={() => {
-                          if (isMantri && player.id !== playerId && player.character !== 'RAJA' && player.character !== 'MANTRI') {
-                            setSelectedPlayer(player.id);
-                          }
-                        }}
-                        className={`pixel-player-slot transition-all ${selectedPlayer === player.id
-                          ? 'transform scale-105'
-                          : ''
-                          } ${isMantri && player.id !== playerId && player.character !== 'RAJA' && player.character !== 'MANTRI'
-                            ? 'cursor-pointer hover:transform hover:scale-105 pixel-selectable-pulse'
-                            : ''
-                          } ${showCharacter && player.character ? characterCardClasses[player.character] : ''}`}
-                        style={selectedPlayer === player.id ? { borderColor: 'var(--pixel-primary)', borderWidth: '6px' } : {}}
+                        className={`pixel-player-slot transition-all ${showCharacter && player.character ? characterCardClasses[player.character] : ''}`}
                       >
                         <p className="font-bold mb-2" style={{ color: 'var(--pixel-dark)' }}>{player.name}</p>
                         <div className="flex justify-center items-center gap-1 mb-2">
@@ -1046,7 +1086,7 @@ export default function GameRoom({ gameToken }: GameRoomProps) {
             <div className="pixel-card p-4 mb-6" style={{ background: 'var(--pixel-warning)', border: '4px solid var(--pixel-dark)' }}>
               <div className="flex flex-col md:flex-row items-center justify-between gap-3">
                 <p className="font-bold" style={{ color: 'var(--pixel-dark)' }}>
-                  ⏱️ Returning to arcade in {gameEndCountdown} seconds...
+                  ⏱️ Returning to arcade in {Math.floor(gameEndCountdown / 60)}:{(gameEndCountdown % 60).toString().padStart(2, '0')}
                 </p>
                 <button
                   onClick={handleLeaveNow}
@@ -1227,6 +1267,6 @@ export default function GameRoom({ gameToken }: GameRoomProps) {
           </div>
         )}
       </div>
-    </div>
+    </div >
   );
 }
