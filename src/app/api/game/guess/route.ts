@@ -36,6 +36,9 @@ export async function POST(request: NextRequest) {
     // Calculate scores
     const { updatedPlayers, isCorrect } = calculateRoundScores(game.players, guessedPlayerId);
 
+    // Create map of old scores BEFORE updating
+    const oldScores = new Map(game.players.map(p => [p.id, p.score]));
+
     // Save round result
     const chor = game.players.find(p => p.character === 'CHOR');
     const roundResult: RoundResult = {
@@ -44,7 +47,7 @@ export async function POST(request: NextRequest) {
         id: p.id,
         name: p.name,
         character: p.character!,
-        pointsEarned: updatedPlayers.find(up => up.id === p.id)!.score - p.score
+        pointsEarned: p.score - (oldScores.get(p.id) || 0)  // Use old scores from before update
       })),
       mantriGuessedCorrectly: isCorrect,
       chorId: chor!.id,

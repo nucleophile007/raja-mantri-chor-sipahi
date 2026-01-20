@@ -19,10 +19,10 @@ function fisherYatesShuffle<T>(array: T[]): T[] {
 
 export function shuffleAndAssignCharacters(players: Player[]): Player[] {
   const characters: Character[] = ['RAJA', 'MANTRI', 'CHOR', 'SIPAHI'];
-  
+
   // Use Fisher-Yates shuffle for truly random distribution
   const shuffled = fisherYatesShuffle(characters);
-  
+
   return players.map((player, index) => ({
     ...player,
     character: shuffled[index]
@@ -48,7 +48,7 @@ export function calculateRoundScores(
     let pointsToAdd = 0;
 
     if (player.character === 'RAJA') {
-      pointsToAdd = 1000;
+      pointsToAdd = 1000;  // Raja gets 1000 points
     } else if (player.character === 'MANTRI') {
       pointsToAdd = isCorrect ? 800 : 0;
     } else if (player.character === 'CHOR') {

@@ -334,6 +334,46 @@ export default function ImposterRoom({ gameToken }: ImposterRoomProps) {
         }
     }, [connectionState, playerId, fetchState]);
 
+    // Auto-check voting timeout
+    const timeoutCheckDone = useRef(false);
+    useEffect(() => {
+        if (!gameState || gameState.gameStatus !== 'VOTING' || !gameState.votingStartedAt || !playerId) {
+            timeoutCheckDone.current = false; // Reset when not in voting
+            return;
+        }
+
+        const checkInterval = setInterval(async () => {
+            const elapsed = Math.floor((Date.now() - gameState.votingStartedAt!) / 1000);
+            const timeout = gameState.votingTimeout || 120;
+
+            // If time is up and we haven't checked yet
+            if (elapsed >= timeout && !timeoutCheckDone.current) {
+                timeoutCheckDone.current = true;
+                console.log('⏰ Voting timeout reached - calling check-timeout API...');
+
+                try {
+                    const response = await fetch('/api/imposter/check-timeout', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ gameToken, playerId })
+                    });
+
+                    const data = await response.json();
+                    if (data.success && data.timedOut) {
+                        console.log('✅ Voting auto-completed by server');
+                        // Refresh state to see results
+                        setTimeout(() => fetchState(false), 1000);
+                    }
+                } catch (err) {
+                    console.error('Failed to check timeout:', err);
+                }
+            }
+        }, 1000); // Check every second
+
+        return () => clearInterval(checkInterval);
+    }, [gameState, playerId, gameToken, fetchState]);
+
+
     // Handle scratching card with optimistic update
     const handleScratch = useCallback(async () => {
         if (!playerId || loading) return;
@@ -870,11 +910,6 @@ export default function ImposterRoom({ gameToken }: ImposterRoomProps) {
                             const remaining = Math.max(0, gameState.votingTimeout - elapsed);
                             const minutes = Math.floor(remaining / 60);
                             const seconds = remaining % 60;
-
-                            // Auto-refresh when time's up
-                            if (remaining === 0) {
-                                setTimeout(() => fetchState(false), 500);
-                            }
 
                             return (
                                 <div className="pixel-card p-3 text-center" style={{

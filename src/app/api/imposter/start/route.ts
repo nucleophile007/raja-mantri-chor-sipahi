@@ -40,17 +40,18 @@ export async function POST(request: NextRequest) {
             );
         }
 
-        const activePlayers = game.players.filter(p => p.isActive);
-        if (activePlayers.length < MIN_PLAYERS) {
+        // CRITICAL: Filter players to only those in lobby FIRST, before selecting imposter
+        const lobbyPlayers = game.players.filter(p => p.isActive && p.isInLobby);
+
+        if (lobbyPlayers.length < MIN_PLAYERS) {
             return NextResponse.json(
-                { error: `Need at least ${MIN_PLAYERS} players to start` },
+                { error: `Need at least ${MIN_PLAYERS} players in lobby to start` },
                 { status: 400 }
             );
         }
 
-
-        // Select random imposter BEFORE generating word (instant)
-        const imposterId = selectImposter(game.players);
+        // Select random imposter from ONLY players who are in the lobby
+        const imposterId = selectImposter(lobbyPlayers);
 
         // Update game state IMMEDIATELY (without waiting for word)
         game.imposterId = imposterId;
@@ -59,14 +60,12 @@ export async function POST(request: NextRequest) {
         game.word = generateWord(); // Instant selection from word bank
         console.log(`✅ Word selected: ${game.word}`);
 
-        // REMOVE players who were not in the lobby - they are kicked out entirely
-        game.players = game.players
-            .filter(p => p.isInLobby)  // Only keep players who joined the lobby
-            .map(p => ({
-                ...p,
-                hasScratched: false,
-                hasVoted: false
-            }));
+        // Update players array with only lobby players, reset their state
+        game.players = lobbyPlayers.map(p => ({
+            ...p,
+            hasScratched: false,
+            hasVoted: false
+        }));
         game.votes = [];
         game.result = null;
         game.endReason = null;
