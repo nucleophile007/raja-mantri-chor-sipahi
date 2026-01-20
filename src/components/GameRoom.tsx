@@ -40,6 +40,8 @@ export default function GameRoom({ gameToken }: GameRoomProps) {
   const [, startTransition] = useTransition();
   const router = useRouter();
   const resultsCardRef = useRef<HTMLDivElement>(null);
+  const [showJoinForm, setShowJoinForm] = useState(false);
+  const [joinPlayerName, setJoinPlayerName] = useState('');
 
   // Detect mobile device
   useEffect(() => {
@@ -147,7 +149,17 @@ export default function GameRoom({ gameToken }: GameRoomProps) {
     const storedPlayerId = localStorage.getItem('playerId');
     const storedGameToken = localStorage.getItem('gameToken');
 
+    // Check if this is a join link (no session, but join param present)
+    const urlParams = new URLSearchParams(window.location.search);
+    const isJoinLink = urlParams.get('join') === 'true';
+
     if (!storedPlayerId || storedGameToken !== gameToken) {
+      if (isJoinLink) {
+        // Show join form - don't redirect
+        setShowJoinForm(true);
+        return;
+      }
+      // Not a join link and no valid session - redirect to home
       router.push('/');
       return;
     }
@@ -443,6 +455,108 @@ export default function GameRoom({ gameToken }: GameRoomProps) {
   const handleChitAnimationComplete = useCallback(() => {
     setShowChitAnimation(false);
   }, []);
+
+  // Handle join from link
+  const handleJoinFromLink = useCallback(async () => {
+    if (!joinPlayerName.trim()) {
+      setError('Please enter your name');
+      return;
+    }
+
+    setLoading(true);
+    setError('');
+
+    try {
+      const response = await fetch('/api/game/join', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          gameToken,
+          playerName: joinPlayerName.trim()
+        })
+      });
+
+      const data = await response.json();
+
+      if (data.success) {
+        localStorage.setItem('playerId', data.playerId);
+        localStorage.setItem('gameToken', gameToken);
+        setPlayerId(data.playerId);
+        setShowJoinForm(false);
+        // Remove join param from URL
+        window.history.replaceState({}, '', `/game/${gameToken}`);
+      } else {
+        setError(data.error || 'Failed to join game');
+      }
+    } catch (err) {
+      setError('Network error. Please try again.');
+    } finally {
+      setLoading(false);
+    }
+  }, [gameToken, joinPlayerName]);
+
+  // Show join form for users coming from share link
+  if (showJoinForm) {
+    return (
+      <div className="min-h-screen pixel-grid flex items-center justify-center p-4" style={{ background: 'var(--pixel-bg)' }}>
+        <div className="pixel-card p-8 max-w-md w-full">
+          <div className="text-center mb-6">
+            <div className="inline-flex items-center justify-center mb-4">
+              <PixelRaja size={64} />
+            </div>
+            <h2 className="pixel-text-lg mb-2" style={{ color: 'var(--pixel-dark)' }}>Join RMCS Game</h2>
+            <p className="pixel-token text-2xl mb-2">{gameToken}</p>
+            <p className="text-sm" style={{ color: 'var(--pixel-dark)' }}>Enter your name to join the game</p>
+          </div>
+
+          {error && (
+            <div className="pixel-card p-3 mb-4" style={{ background: 'var(--pixel-danger)', color: 'white' }}>
+              {error}
+            </div>
+          )}
+
+          <div className="space-y-4">
+            <div>
+              <label className="block text-sm font-bold mb-2" style={{ color: 'var(--pixel-dark)' }}>
+                Your Name
+              </label>
+              <input
+                type="text"
+                value={joinPlayerName}
+                onChange={(e) => setJoinPlayerName(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && handleJoinFromLink()}
+                placeholder="Enter your name"
+                maxLength={20}
+                className="pixel-input w-full"
+                disabled={loading}
+                autoFocus
+              />
+            </div>
+
+            <button
+              onClick={handleJoinFromLink}
+              disabled={loading || !joinPlayerName.trim()}
+              className="w-full pixel-btn"
+              style={{
+                background: 'var(--pixel-success)',
+                color: 'white',
+                opacity: loading || !joinPlayerName.trim() ? 0.5 : 1
+              }}
+            >
+              {loading ? '⏳ Joining...' : '🎮 Join Game'}
+            </button>
+
+            <button
+              onClick={() => router.push('/')}
+              className="w-full pixel-btn pixel-btn-secondary text-sm"
+            >
+              ← Back to Arcade
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   if (!gameState) {
     return (

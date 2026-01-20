@@ -26,9 +26,9 @@ export default function JoinPage() {
       const storedPlayerId = localStorage.getItem('playerId');
       const storedGameToken = localStorage.getItem('gameToken');
 
-      // No existing session - redirect to join form
+      // No existing session - redirect to game page with code for RMCS to handle
       if (!storedPlayerId || !storedGameToken) {
-        router.push(`/?code=${code}`);
+        router.push(`/game/${code}?join=true`);
         return;
       }
 
@@ -84,7 +84,7 @@ export default function JoinPage() {
             // Their old session is invalid - clear and redirect
             localStorage.removeItem('playerId');
             localStorage.removeItem('gameToken');
-            router.push(`/?code=${code}`);
+            router.push(`/game/${code}?join=true`);
             return;
           }
         } catch (err) {
@@ -123,12 +123,12 @@ export default function JoinPage() {
       localStorage.removeItem('gameToken');
 
       // Redirect to join the new game
-      router.push(`/?code=${code}`);
+      router.push(`/game/${code}?join=true`);
     } catch (err) {
       // Clear anyway and redirect
       localStorage.removeItem('playerId');
       localStorage.removeItem('gameToken');
-      router.push(`/?code=${code}`);
+      router.push(`/game/${code}?join=true`);
     }
   };
 
