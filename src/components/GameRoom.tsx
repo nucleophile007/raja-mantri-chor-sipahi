@@ -223,13 +223,22 @@ export default function GameRoom({ gameToken }: GameRoomProps) {
 
   // Auto-show modal for Mantri during guessing phase
   useEffect(() => {
-    if (gameState?.gameStatus === 'MANTRI_GUESSING' && isMantri) {
+    console.log('🔍 Modal Check:', {
+      gameStatus: gameState?.gameStatus,
+      isMantri,
+      showMantriModal,
+      playerId,
+      character: currentPlayer?.character
+    });
+
+    if (gameState?.gameStatus === 'KING_REVEALED' && isMantri) {
+      console.log('✅ Opening Mantri modal');
       setShowMantriModal(true);
       setSelectedPlayer(null); // Reset selection when modal opens
     } else {
       setShowMantriModal(false);
     }
-  }, [gameState?.gameStatus, isMantri]);
+  }, [gameState?.gameStatus, isMantri, currentPlayer?.character]);
 
   const handlePusherUpdate = useCallback((newState: GameState) => {
     const currentPlayerStillInGame = newState.players.find(p => p.id === playerId);
@@ -645,55 +654,58 @@ export default function GameRoom({ gameToken }: GameRoomProps) {
   return (
     <div className="min-h-screen pixel-grid p-4" style={{ background: 'var(--pixel-bg)' }}>
       {/* Mantri Selection Modal */}
-      {showMantriModal && isMantri && (
-        <div className="fixed inset-0 bg-black bg-opacity-70 z-50 flex items-center justify-center p-4">
-          <div className="pixel-card p-8 max-w-md w-full">
-            <h2 className="pixel-text-lg text-center mb-6" style={{ color: 'var(--pixel-dark)' }}>
-              🎯 GUESS THE CHOR!
-            </h2>
+      {showMantriModal && isMantri && (() => {
+        console.log('🎯 Rendering Mantri Modal', { players: gameState.players.filter(p => p.id !== playerId && p.character !== 'RAJA' && p.character !== 'MANTRI') });
+        return (
+          <div className="fixed inset-0 z-50 flex items-start justify-center p-4 pt-20 pointer-events-none">
+            <div className="pixel-card p-8 max-w-md w-full pointer-events-auto opacity-85">
+              <h2 className="pixel-text-lg text-center mb-6" style={{ color: 'var(--pixel-dark)' }}>
+                🎯 GUESS THE CHOR!
+              </h2>
 
-            <div className="grid grid-cols-2 gap-4 mb-6">
-              {gameState.players
-                .filter(p => p.id !== playerId && p.character !== 'RAJA' && p.character !== 'MANTRI')
-                .map(player => (
-                  <div
-                    key={player.id}
-                    onClick={() => setSelectedPlayer(player.id)}
-                    className={`pixel-card p-6 cursor-pointer hover:scale-105 transition-transform ${selectedPlayer === player.id ? 'ring-4 ring-primary' : ''
-                      }`}
-                    style={selectedPlayer === player.id ? { borderColor: 'var(--pixel-primary)', borderWidth: '6px' } : {}}
-                  >
-                    <div className="text-5xl text-center mb-3">👤</div>
-                    <p className="pixel-text text-center font-bold" style={{ color: 'var(--pixel-dark)' }}>
-                      {player.name}
-                    </p>
-                  </div>
-                ))}
+              <div className="grid grid-cols-2 gap-4 mb-6">
+                {gameState.players
+                  .filter(p => p.id !== playerId && p.character !== 'RAJA' && p.character !== 'MANTRI')
+                  .map(player => (
+                    <div
+                      key={player.id}
+                      onClick={() => setSelectedPlayer(player.id)}
+                      className={`pixel-card p-6 cursor-pointer hover:scale-105 transition-transform ${selectedPlayer === player.id ? 'ring-4 ring-primary' : ''
+                        }`}
+                      style={selectedPlayer === player.id ? { borderColor: 'var(--pixel-primary)', borderWidth: '6px' } : {}}
+                    >
+                      <div className="text-5xl text-center mb-3">👤</div>
+                      <p className="pixel-text text-center font-bold" style={{ color: 'var(--pixel-dark)' }}>
+                        {player.name}
+                      </p>
+                    </div>
+                  ))}
+              </div>
+
+              <button
+                onClick={() => {
+                  if (selectedPlayer) {
+                    handleMantriGuess();
+                    setShowMantriModal(false);
+                  }
+                }}
+                disabled={!selectedPlayer || loading}
+                className="w-full pixel-btn pixel-btn-accent"
+                style={{ opacity: !selectedPlayer || loading ? 0.5 : 1 }}
+              >
+                {loading ? (
+                  <span className="flex items-center justify-center gap-2">
+                    <div className="pixel-spinner"></div>
+                    Confirming...
+                  </span>
+                ) : (
+                  '✓ Confirm Guess'
+                )}
+              </button>
             </div>
-
-            <button
-              onClick={() => {
-                if (selectedPlayer) {
-                  handleMantriGuess();
-                  setShowMantriModal(false);
-                }
-              }}
-              disabled={!selectedPlayer || loading}
-              className="w-full pixel-btn pixel-btn-accent"
-              style={{ opacity: !selectedPlayer || loading ? 0.5 : 1 }}
-            >
-              {loading ? (
-                <span className="flex items-center justify-center gap-2">
-                  <div className="pixel-spinner"></div>
-                  Confirming...
-                </span>
-              ) : (
-                '✓ Confirm Guess'
-              )}
-            </button>
           </div>
-        </div>
-      )}
+        );
+      })()}
 
       <div className="max-w-4xl mx-auto">
         {/* Header */}
