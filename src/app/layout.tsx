@@ -9,8 +9,8 @@ const pixelFont = Press_Start_2P({
 });
 
 export const metadata: Metadata = {
-  title: "RMCS - Raja Mantri Chor Sipahi",
-  description: "A classic Indian card game brought to life with pixel art!",
+  title: "Desi Arcade - Classic Indian Games",
+  description: "Relive your childhood with nostalgic Indian games in pixel-art style. Play RMCS, Imposter, and more classic desi games!",
 };
 
 export default function RootLayout({
