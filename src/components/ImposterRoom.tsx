@@ -722,7 +722,7 @@ export default function ImposterRoom({ gameToken }: ImposterRoomProps) {
                         <div className="flex gap-2">
                             <button
                                 onClick={handleManualRefresh}
-                                className="pixel-btn text-xs p-1 px-2 h-8"
+                                className="pixel-btn text-sm flex items-center justify-center w-8 h-8 p-0"
                                 disabled={loading}
                                 title="Refresh game state"
                             >
@@ -730,8 +730,9 @@ export default function ImposterRoom({ gameToken }: ImposterRoomProps) {
                             </button>
                             <button
                                 onClick={handleLeave}
-                                className="pixel-btn text-xs p-1 px-2 h-8"
+                                className="pixel-btn text-sm flex items-center justify-center w-8 h-8 p-0"
                                 style={{ background: 'var(--pixel-danger)', color: 'white' }}
+                                title="Leave Game"
                             >
                                 🚪
                             </button>
@@ -906,20 +907,22 @@ export default function ImposterRoom({ gameToken }: ImposterRoomProps) {
                                             const shareText = `🕵️ Join my Imposter game!\n\nCode: ${gameToken}\n\n${window.location.origin}/imposter/${gameToken}`;
                                             window.open(`https://wa.me/?text=${encodeURIComponent(shareText)}`, '_blank');
                                         }}
-                                        className="pixel-btn text-xs p-2"
+                                        className="pixel-btn text-[10px] sm:text-xs p-1 sm:p-2 flex flex-col items-center justify-center gap-1 h-14"
                                         style={{ background: '#25D366', color: 'white' }}
                                     >
-                                        💬 WhatsApp
+                                        <span className="text-lg leading-none">💬</span>
+                                        <span>WhatsApp</span>
                                     </button>
                                     <button
                                         onClick={() => {
                                             const shareText = `🕵️ Join my Imposter game!\nCode: ${gameToken}\n${window.location.origin}/imposter/${gameToken}`;
                                             window.open(`https://twitter.com/intent/tweet?text=${encodeURIComponent(shareText)}`, '_blank');
                                         }}
-                                        className="pixel-btn text-xs p-2"
+                                        className="pixel-btn text-[10px] sm:text-xs p-1 sm:p-2 flex flex-col items-center justify-center gap-1 h-14"
                                         style={{ background: '#1DA1F2', color: 'white' }}
                                     >
-                                        𝕏 Share
+                                        <span className="text-lg leading-none">𝕏</span>
+                                        <span>Share</span>
                                     </button>
                                     <button
                                         onClick={() => {
@@ -927,9 +930,10 @@ export default function ImposterRoom({ gameToken }: ImposterRoomProps) {
                                             setMilestoneToast('[COPIED] CODE SAVED TO CLIPBOARD');
                                             setTimeout(() => setMilestoneToast(null), 2000);
                                         }}
-                                        className="pixel-btn text-xs p-2"
+                                        className="pixel-btn text-[10px] sm:text-xs p-1 sm:p-2 flex flex-col items-center justify-center gap-1 h-14"
                                     >
-                                        📋 Copy
+                                        <span className="text-lg leading-none">📋</span>
+                                        <span>Copy</span>
                                     </button>
                                 </div>
                             </div>
