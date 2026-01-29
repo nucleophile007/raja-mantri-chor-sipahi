@@ -79,13 +79,13 @@ export async function POST(request: NextRequest) {
         const activePlayers = game.players.filter(p => p.isActive);
         if (activePlayers.length === 0) {
             await deleteImposterGame(gameToken);
-            return NextResponse.json({
+            const response = NextResponse.json({
                 success: true,
                 gameDeleted: true
             });
+            response.cookies.delete('imposter_session');
+            return response;
         }
-
-        await updateImposterGame(gameToken, game);
 
         await updateImposterGame(gameToken, game);
 
@@ -99,10 +99,13 @@ export async function POST(request: NextRequest) {
             newHostName: newHost?.name
         });
 
-        return NextResponse.json({
+        const response = NextResponse.json({
             success: true,
             gameEnded: false
         });
+        response.cookies.delete('imposter_session');
+        return response;
+
     } catch (error) {
         console.error('Error leaving Imposter game:', error);
         return NextResponse.json(

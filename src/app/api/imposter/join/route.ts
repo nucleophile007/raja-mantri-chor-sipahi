@@ -4,9 +4,19 @@ import { ImposterPlayer } from '@/types/imposter';
 import { getImposterGame, updateImposterGame } from '@/lib/imposterStorage';
 import { MAX_PLAYERS } from '@/lib/imposterLogic';
 import { broadcastImposterAction } from '@/lib/pusher';
+import { validateRequestSession } from '@/lib/imposterSession';
 
 export async function POST(request: NextRequest) {
     try {
+        // Enforce Single Session
+        const { hasActiveSession, error: sessionError } = await validateRequestSession(request);
+        if (hasActiveSession) {
+            return NextResponse.json(
+                { error: sessionError },
+                { status: 403 }
+            );
+        }
+
         const { gameToken, playerName } = await request.json();
 
         if (!gameToken || !playerName) {
@@ -81,12 +91,22 @@ export async function POST(request: NextRequest) {
             isHost: false
         });
 
-        return NextResponse.json({
+        const response = NextResponse.json({
             success: true,
             gameToken: game.gameToken,
             playerId,
             playerName: newPlayer.name
         });
+
+        // Set session cookie
+        response.cookies.set('imposter_session', JSON.stringify({ gameToken, playerId }), {
+            httpOnly: true,
+            path: '/',
+            maxAge: 60 * 60 * 24 // 24 hours
+        });
+
+        return response;
+
     } catch (error) {
         console.error('Error joining Imposter game:', error);
         return NextResponse.json(
