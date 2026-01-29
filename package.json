@@ -6,7 +6,9 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "video:preview": "remotion preview remotion/Root.tsx",
+    "video:render": "remotion render remotion/Root.tsx DesiArcadeTrailer out/trailer.mp4"
   },
   "dependencies": {
     "@upstash/redis": "^1.36.1",
@@ -19,6 +21,8 @@
     "uuid": "^13.0.0"
   },
   "devDependencies": {
+    "@remotion/bundler": "^4.0.407",
+    "@remotion/cli": "^4.0.407",
     "@tailwindcss/postcss": "^4",
     "@types/node": "^20",
     "@types/react": "^19",
@@ -27,6 +31,7 @@
     "babel-plugin-react-compiler": "1.0.0",
     "eslint": "^9",
     "eslint-config-next": "16.1.2",
+    "remotion": "^4.0.407",
     "tailwindcss": "^4",
     "typescript": "^5"
   }

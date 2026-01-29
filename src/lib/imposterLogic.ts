@@ -1,29 +1,29 @@
-// Imposter Game Logic
+// Game Logic for Imposter (Desi Style)
 
 import { ImposterGame, ImposterPlayer, ImposterClientState, VoteClient, VoteResult } from '@/types/imposter';
 
-// Get minimum players required to start
+// Minimum players needed to start the game
 export const MIN_PLAYERS = 3;
 export const MAX_PLAYERS = 20;
 
-// Select a random imposter from players
+// Pick a random Imposter from the players
 export function selectImposter(players: ImposterPlayer[]): string {
     const activePlayers = players.filter(p => p.isActive);
     const randomIndex = Math.floor(Math.random() * activePlayers.length);
     return activePlayers[randomIndex].id;
 }
 
-// Check if all active players have scratched
+// Check if all active players have done the scratching
 export function allPlayersScratched(players: ImposterPlayer[]): boolean {
     return players.filter(p => p.isActive).every(p => p.hasScratched);
 }
 
-// Check if all active players have voted
+// Check if everyone has cast their vote
 export function allPlayersVoted(players: ImposterPlayer[]): boolean {
     return players.filter(p => p.isActive).every(p => p.hasVoted);
 }
 
-// Calculate voting result
+// Calculate the voting results
 export function calculateVotingResult(game: ImposterGame): {
     mostVotedId: string;
     isCorrect: boolean;
@@ -31,12 +31,12 @@ export function calculateVotingResult(game: ImposterGame): {
 } {
     const voteCount: Record<string, number> = {};
 
-    // Count votes
+    // Counting the votes
     game.votes.forEach(vote => {
         voteCount[vote.votedForId] = (voteCount[vote.votedForId] || 0) + 1;
     });
 
-    // Find most voted
+    // Finding who got the maximum votes
     let mostVotedId = '';
     let maxVotes = 0;
     let tieExists = false;
@@ -51,7 +51,7 @@ export function calculateVotingResult(game: ImposterGame): {
         }
     });
 
-    // If tie, imposter wins
+    // If it's a tie, Imposter wins (Enjoy!)
     if (tieExists) {
         return { mostVotedId: '', isCorrect: false, voteCount };
     }
@@ -63,7 +63,7 @@ export function calculateVotingResult(game: ImposterGame): {
     };
 }
 
-// Transfer host to another player
+// Transfer host duties to another player
 export function transferHost(players: ImposterPlayer[], currentHostId: string): ImposterPlayer[] {
     const activePlayers = players.filter(p => p.isActive && p.id !== currentHostId);
 
@@ -71,7 +71,7 @@ export function transferHost(players: ImposterPlayer[], currentHostId: string): 
         return players;
     }
 
-    // Pick random active player to be new host
+    // Pick a random guy to be the new host
     const randomIndex = Math.floor(Math.random() * activePlayers.length);
     const newHostId = activePlayers[randomIndex].id;
 
@@ -81,7 +81,7 @@ export function transferHost(players: ImposterPlayer[], currentHostId: string): 
     }));
 }
 
-// Convert game to client-safe state (NO PLAYER IDs EXPOSED)
+// Sanitize game state for client (Don't show IDs)
 export function toClientState(
     game: ImposterGame,
     requestingPlayerId: string
@@ -90,19 +90,19 @@ export function toClientState(
     const requestingPlayer = game.players.find(p => p.id === requestingPlayerId);
     const isImposter = game.imposterId === requestingPlayerId;
 
-    // Determine what card content to show
+    // Decide what to show on the card
     let myCard: string | null = null;
     if (requestingPlayer?.hasScratched && game.word) {
         myCard = isImposter ? 'IMPOSTER' : game.word;
     }
 
-    // Convert votes for client (only show voter names, not who they voted for)
+    // Convert votes for client (keep it anonymous for now)
     const votes: VoteClient[] = game.votes.map(v => {
         const voter = game.players.find(p => p.id === v.voterId);
         return { voterName: voter?.name || 'Unknown' };
     });
 
-    // Build vote results (only if game over)
+    // Build vote results (only if game is over)
     let voteResults: VoteResult[] | null = null;
     if (isGameOver) {
         const voteCount: Record<string, number> = {};
@@ -120,14 +120,14 @@ export function toClientState(
             .sort((a, b) => b.voteCount - a.voteCount);
     }
 
-    // Get imposter name (only if game over)
+    // Extract Imposter name (only on game over)
     const imposterName = isGameOver
         ? game.players.find(p => p.id === game.imposterId)?.name || null
         : null;
 
     return {
         gameToken: game.gameToken,
-        // Only send ACTIVE players to client (reduces payload and fixes privacy concern)
+        // Send only ACTIVE players to client (save payload & privacy)
         players: game.players
             .filter(p => p.isActive)
             .map(p => ({
@@ -137,15 +137,15 @@ export function toClientState(
                 hasScratched: p.hasScratched,
                 hasVoted: p.hasVoted,
                 isInLobby: p.isInLobby || false,
-                isMe: p.id === requestingPlayerId  // Only flag, no ID exposed
+                isMe: p.id === requestingPlayerId  // Only sending flag, no IDs
             })),
         gameStatus: game.gameStatus,
         myCard,
         myName: requestingPlayer?.name || null,
         amIHost: requestingPlayer?.isHost || false,
-        amIImposter: isGameOver ? isImposter : null,  // Only reveal after game ends
+        amIImposter: isGameOver ? isImposter : null,  // Reveal only after game ends
         imposterName,
-        hostInLobby: game.hostInLobby || false,       // For back-to-lobby flow
+        hostInLobby: game.hostInLobby || false,       // To go back to lobby
         votes,
         voteResults,
         result: game.result,

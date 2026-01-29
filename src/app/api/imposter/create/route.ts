@@ -47,8 +47,8 @@ export async function POST(request: NextRequest) {
             createdAt: Date.now(),
             endedAt: null,
             endReason: null,
-            hostInLobby: true,  // Host is in lobby when game is created
-            votingTimeout: 120,  // Default 2 minutes
+            hostInLobby: true,  // Host stays in the lobby while creating the game
+            votingTimeout: 120,  // Default 2 minutes voting time
             votingStartedAt: null
         };
 

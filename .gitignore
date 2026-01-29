@@ -46,3 +46,13 @@ next-env.d.ts
 
 # design page (internal use only)
 /src/app/design
+
+# remotion
+remotion/
+remotion.config.ts
+
+# AI agents and tools
+.agent/
+.agents/
+.claude/
+.gemini/
