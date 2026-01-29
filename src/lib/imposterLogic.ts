@@ -137,7 +137,8 @@ export function toClientState(
                 hasScratched: p.hasScratched,
                 hasVoted: p.hasVoted,
                 isInLobby: p.isInLobby || false,
-                isMe: p.id === requestingPlayerId  // Only sending flag, no IDs
+                isMe: p.id === requestingPlayerId,  // Only sending flag, no IDs
+                isOnline: (Date.now() - (p.lastHeartbeat || p.joinedAt)) < 20000
             })),
         gameStatus: game.gameStatus,
         myCard,

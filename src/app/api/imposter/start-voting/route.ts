@@ -33,10 +33,17 @@ export async function POST(request: NextRequest) {
         }
 
         if (game.gameStatus !== 'DISCUSSION') {
-            return NextResponse.json(
-                { error: 'Voting can only be started during discussion phase' },
-                { status: 400 }
-            );
+            const { force } = await request.json().catch(() => ({}));
+
+            // Allow force start from SCRATCHING or CARDS_DEALT if host requests it
+            if (force && (game.gameStatus === 'SCRATCHING' || game.gameStatus === 'CARDS_DEALT')) {
+                console.log('⚠️ Force starting voting from', game.gameStatus);
+            } else {
+                return NextResponse.json(
+                    { error: 'Voting can only be started during discussion phase' },
+                    { status: 400 }
+                );
+            }
         }
 
         // Start voting

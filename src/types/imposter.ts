@@ -36,6 +36,7 @@ export interface ImposterPlayer {
     hasVoted: boolean;
     isInLobby: boolean; // Tracks if player has returned to lobby screen
     joinedAt: number;
+    lastHeartbeat?: number; // Timestamp of last heartbeat
 }
 
 export interface Vote {
@@ -73,6 +74,7 @@ export interface ImposterPlayerClient {
     hasVoted: boolean;
     isInLobby: boolean;
     isMe: boolean;  // Flag for current player
+    isOnline?: boolean; // Derived from lastHeartbeat
 }
 
 // Vote visible during voting (only shows someone voted, not for whom)
@@ -104,4 +106,5 @@ export type ImposterGameAction =
     | { type: 'MILESTONE'; message: string }  // Progress notification (first scratch, all scratch, etc.)
     | { type: 'HOST_IN_LOBBY' }     // Host clicked "Back to Lobby" - others can now follow
     | { type: 'PLAYER_ENTERED_LOBBY'; playerName: string }
+    | { type: 'PLAYER_KICKED'; kickedPlayerId: string; kickedPlayerName: string } // Player kicked by host
     | { type: 'BACK_TO_LOBBY' };    // Full lobby reset complete
