@@ -57,7 +57,7 @@ export default function ScratchCard({ onComplete, cardContent, isScratched }: Sc
 
         ctx.globalCompositeOperation = 'destination-out';
         ctx.beginPath();
-        ctx.arc(x, y, 20, 0, Math.PI * 2);
+        ctx.arc(x, y, 30, 0, Math.PI * 2);
         ctx.fill();
 
         // Calculate scratch percentage
@@ -95,7 +95,7 @@ export default function ScratchCard({ onComplete, cardContent, isScratched }: Sc
     const showRevealed = revealed;
 
     return (
-        <div className="relative w-full max-w-xs mx-auto">
+        <div className="relative w-full max-w-sm mx-auto">
             {/* Card background with content */}
             <div
                 className={`relative w-full aspect-[3/4] rounded-lg overflow-hidden ${isImposter ? 'bg-red-900' : 'bg-gradient-to-br from-amber-100 to-amber-200'
@@ -151,8 +151,8 @@ export default function ScratchCard({ onComplete, cardContent, isScratched }: Sc
                 {!showRevealed && (
                     <canvas
                         ref={canvasRef}
-                        width={240}
-                        height={320}
+                        width={300}
+                        height={400}
                         className="absolute inset-0 w-full h-full cursor-crosshair touch-none"
                         onMouseDown={handleMouseDown}
                         onMouseUp={handleMouseUp}

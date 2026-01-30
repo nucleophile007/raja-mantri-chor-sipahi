@@ -18,6 +18,13 @@ function getSharedPusher(): Pusher {
   if (!sharedPusher) {
     sharedPusher = new Pusher(process.env.NEXT_PUBLIC_PUSHER_KEY!, {
       cluster: process.env.NEXT_PUBLIC_PUSHER_CLUSTER || 'ap2',
+      authEndpoint: '/api/pusher/auth',
+      auth: {
+        params: {
+          user_id: localStorage.getItem('imposter_playerId') || 'anon',
+          user_name: 'Player'
+        }
+      },
       enabledTransports: ['ws', 'wss'],
       disableStats: true,
     });
@@ -29,6 +36,34 @@ function getSharedPusher(): Pusher {
     });
   }
   return sharedPusher;
+}
+
+// Track channel reference counts to prevent premature unsubscription
+const channelRefs = new Map<string, { count: number; channel: any }>();
+
+function subscribeToChannel(pusher: Pusher, channelName: string) {
+  let ref = channelRefs.get(channelName);
+  if (!ref) {
+    const channel = pusher.subscribe(channelName);
+    ref = { count: 0, channel };
+    channelRefs.set(channelName, ref);
+  }
+  ref.count++;
+  console.log(`📡 Subscribe ${channelName} (Refs: ${ref.count})`);
+  return ref.channel;
+}
+
+function unsubscribeFromChannel(pusher: Pusher, channelName: string) {
+  const ref = channelRefs.get(channelName);
+  if (ref) {
+    ref.count--;
+    console.log(`End Subscribe ${channelName} (Refs: ${ref.count})`);
+    if (ref.count <= 0) {
+      pusher.unsubscribe(channelName);
+      channelRefs.delete(channelName);
+      console.log(`🔌 Unsubscribed ${channelName}`);
+    }
+  }
 }
 
 /**
@@ -48,9 +83,8 @@ export function usePusher({ gameToken, onStateUpdate, enabled = true }: UsePushe
     if (!enabled || !gameToken) return;
 
     const pusher = getSharedPusher();
-
-    // Subscribe to game channel
-    const channel = pusher.subscribe(`game-${gameToken}`);
+    // Subscribe using ref counting
+    const channel = subscribeToChannel(pusher, `game-${gameToken}`);
     channelRef.current = channel;
 
     // Listen for state updates (use memoized callback)
@@ -60,7 +94,7 @@ export function usePusher({ gameToken, onStateUpdate, enabled = true }: UsePushe
     return () => {
       if (channelRef.current) {
         channelRef.current.unbind_all();
-        channelRef.current.unsubscribe();
+        unsubscribeFromChannel(pusher, `game-${gameToken}`);
         channelRef.current = null;
       }
     };
@@ -82,20 +116,34 @@ export function useGenericPusher<T>(
   enabled: boolean = true,
   onReconnect?: () => void  // Called when Pusher reconnects after being disconnected
 ) {
+  const onEventRef = useRef(onEvent);
+  const onReconnectRef = useRef(onReconnect);
   const channelRef = useRef<ReturnType<Pusher['subscribe']> | null>(null);
   const wasDisconnected = useRef(false);
   const [connectionState, setConnectionState] = useState<string>('connecting');
 
+  // Update refs when callbacks change
+  useEffect(() => {
+    onEventRef.current = onEvent;
+  }, [onEvent]);
+
+  useEffect(() => {
+    onReconnectRef.current = onReconnect;
+  }, [onReconnect]);
+
   const handleEvent = useCallback((data: T) => {
-    console.log(`📩 Pusher event received on ${channelName}:${eventName}`, data);
-    onEvent(data);
-  }, [onEvent, channelName, eventName]);
+    // console.log(`📩 Pusher event received on ${channelName}:${eventName}`, data); // Reduce log spam too
+    if (onEventRef.current) {
+      onEventRef.current(data);
+    }
+  }, [channelName, eventName]);
 
   useEffect(() => {
     if (!enabled || !channelName) return;
 
     const pusher = getSharedPusher();
-    const channel = pusher.subscribe(channelName);
+    // Subscribe using ref counting
+    const channel = subscribeToChannel(pusher, channelName);
     channelRef.current = channel;
 
     channel.bind(eventName, handleEvent);
@@ -112,7 +160,9 @@ export function useGenericPusher<T>(
       if (state === 'connected' && wasDisconnected.current) {
         wasDisconnected.current = false;
         console.log('🔄 Pusher reconnected, triggering refresh...');
-        onReconnect?.();
+        if (onReconnectRef.current) {
+          onReconnectRef.current();
+        }
       }
     };
 
@@ -121,12 +171,12 @@ export function useGenericPusher<T>(
     return () => {
       connectionChangeCallbacks.delete(handleConnectionChange);
       if (channelRef.current) {
-        channelRef.current.unbind(eventName);
-        channelRef.current.unsubscribe();
+        channelRef.current.unbind(eventName, handleEvent);
+        unsubscribeFromChannel(pusher, channelName);
         channelRef.current = null;
       }
     };
-  }, [channelName, eventName, enabled, handleEvent, onReconnect]);
+  }, [channelName, eventName, enabled, handleEvent]); // onReconnect and onEvent removed from deps
 
   return { connectionState };
 }

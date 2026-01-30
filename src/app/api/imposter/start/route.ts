@@ -1,94 +1,72 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getImposterGame, updateImposterGame } from '@/lib/imposterStorage';
+import { withGameLock } from '@/lib/imposterStorage';
 import { selectImposter, MIN_PLAYERS } from '@/lib/imposterLogic';
 import { broadcastImposterAction } from '@/lib/pusher';
 import { generateWord } from '@/lib/gemini';
+
+interface StartResult {
+    started: boolean;
+}
 
 export async function POST(request: NextRequest) {
     try {
         const { gameToken, playerId } = await request.json();
 
         if (!gameToken || !playerId) {
-            return NextResponse.json(
-                { error: 'Game token and player ID are required' },
-                { status: 400 }
-            );
+            return NextResponse.json({ error: 'Game token and player ID are required' }, { status: 400 });
         }
 
-        const game = await getImposterGame(gameToken);
+        const result = await withGameLock<StartResult>(gameToken, async (game) => {
+            const player = game.players.find(p => p.id === playerId);
+            if (!player?.isHost) throw new Error('Only host can start the game');
+            if (game.gameStatus !== 'WAITING') throw new Error('Game has already started');
 
-        if (!game) {
-            return NextResponse.json(
-                { error: 'Game not found' },
-                { status: 404 }
+            const now = Date.now();
+            // RELAXED LOGIC: Trust the stored `isActive` flag.
+            // If the host is starting the game, they are definitely active.
+            // Other players might be "Active" but just missed a heartbeat - give them the benefit of the doubt.
+            const lobbyPlayers = game.players.filter(p =>
+                (p.isActive && p.isInLobby) || (p.id === playerId) // Always include the host requesting start
             );
-        }
 
-        // Check if player is host
-        const player = game.players.find(p => p.id === playerId);
-        if (!player?.isHost) {
-            return NextResponse.json(
-                { error: 'Only host can start the game' },
-                { status: 403 }
-            );
-        }
+            if (lobbyPlayers.length < MIN_PLAYERS) {
+                throw new Error(`Need at least ${MIN_PLAYERS} active players to start. (Found ${lobbyPlayers.length})`);
+            }
 
-        if (game.gameStatus !== 'WAITING') {
-            return NextResponse.json(
-                { error: 'Game has already started' },
-                { status: 400 }
-            );
-        }
+            // Select random imposter
+            const imposterId = selectImposter(lobbyPlayers);
 
-        // CRITICAL: Filter players to only those in lobby FIRST, before selecting imposter
-        const lobbyPlayers = game.players.filter(p => p.isActive && p.isInLobby);
+            // Update game state
+            game.imposterId = imposterId;
+            game.gameStatus = 'CARDS_DEALT';
+            game.hostInLobby = false;
+            game.word = generateWord(); // Instant word bank
 
-        if (lobbyPlayers.length < MIN_PLAYERS) {
-            return NextResponse.json(
-                { error: `Need at least ${MIN_PLAYERS} players in lobby to start` },
-                { status: 400 }
-            );
-        }
+            // Prune the player list to ONLY those who made the cut
+            game.players = lobbyPlayers.map(p => ({
+                ...p,
+                hasScratched: false,
+                hasVoted: false
+            }));
+            game.votes = [];
+            game.result = null;
+            game.endReason = null;
 
-        // Select random imposter from ONLY players who are in the lobby
-        const imposterId = selectImposter(lobbyPlayers);
+            return { game, result: { started: true } };
+        });
 
-        // Update game state IMMEDIATELY (without waiting for word)
-        game.imposterId = imposterId;
-        game.gameStatus = 'CARDS_DEALT';
-        game.hostInLobby = false;
-        game.word = generateWord(); // Instant selection from word bank
-        console.log(`✅ Word selected: ${game.word}`);
+        if (!result) return NextResponse.json({ error: 'Game not found or lock failed' }, { status: 404 });
 
-        // Update players array with only lobby players, reset their state
-        game.players = lobbyPlayers.map(p => ({
-            ...p,
-            hasScratched: false,
-            hasVoted: false
-        }));
-        game.votes = [];
-        game.result = null;
-        game.endReason = null;
-
-        await updateImposterGame(gameToken, game);
-
-        // Broadcast GAME_STARTED action for instant UI update
+        // Broadcast
         await broadcastImposterAction(gameToken, {
             type: 'GAME_STARTED',
             status: 'CARDS_DEALT'
         });
 
+        return NextResponse.json({ success: true, message: 'Game started!' });
 
-
-        return NextResponse.json({
-            success: true,
-            message: 'Game started! Cards are being dealt.'
-        });
-    } catch (error) {
-        console.error('Error starting Imposter game:', error);
-        return NextResponse.json(
-            { error: 'Failed to start game' },
-            { status: 500 }
-        );
+    } catch (error: any) {
+        console.error('Error starting game:', error);
+        return NextResponse.json({ error: error.message || 'Failed to start game' }, { status: 500 });
     }
 }

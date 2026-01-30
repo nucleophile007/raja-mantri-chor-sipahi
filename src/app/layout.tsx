@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Press_Start_2P } from "next/font/google";
 import "./globals.css";
+import GlobalGameNav from "@/components/GlobalGameNav";
 
 const pixelFont = Press_Start_2P({
   weight: "400",
@@ -23,6 +24,7 @@ export default function RootLayout({
       <body
         className={`${pixelFont.variable} antialiased`}
       >
+        <GlobalGameNav />
         {children}
       </body>
     </html>

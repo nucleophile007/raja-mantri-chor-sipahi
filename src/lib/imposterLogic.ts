@@ -14,13 +14,17 @@ export function selectImposter(players: ImposterPlayer[]): string {
 }
 
 // Check if all active players have done the scratching
+// Check if all active players have done the scratching
+// Check if all active players have done the scratching (Trust isActive flag)
 export function allPlayersScratched(players: ImposterPlayer[]): boolean {
-    return players.filter(p => p.isActive).every(p => p.hasScratched);
+    const activePlayers = players.filter(p => p.isActive);
+    return activePlayers.length > 0 && activePlayers.every(p => p.hasScratched);
 }
 
 // Check if everyone has cast their vote
 export function allPlayersVoted(players: ImposterPlayer[]): boolean {
-    return players.filter(p => p.isActive).every(p => p.hasVoted);
+    const activePlayers = players.filter(p => p.isActive);
+    return activePlayers.length > 0 && activePlayers.every(p => p.hasVoted);
 }
 
 // Calculate the voting results

@@ -334,81 +334,8 @@ export default function GameArcade() {
                     </div>
                 )}
 
-                {/* Active RMCS Session Banner */}
-                {!checkingSession && rmcsSession && (
-                    <div className="pixel-card p-4 mb-6" style={{ background: 'var(--pixel-accent)', borderColor: 'var(--pixel-dark)' }}>
-                        <div className="flex flex-col md:flex-row items-center justify-between gap-4">
-                            <div className="flex items-center gap-3">
-                                <span className="text-2xl">👑</span>
-                                <div>
-                                    <p className="font-bold" style={{ color: 'var(--pixel-dark)' }}>
-                                        Active RMCS Game: {rmcsSession.gameToken}
-                                    </p>
-                                    <p className="text-sm" style={{ color: 'var(--pixel-dark)' }}>
-                                        Playing as {rmcsSession.playerName} {rmcsSession.isHost && '(Host)'} •
-                                        Round {rmcsSession.currentRound}/{rmcsSession.maxRounds} •
-                                        {rmcsSession.playerCount}/4 players
-                                    </p>
-                                </div>
-                            </div>
-                            <div className="flex gap-2">
-                                <button
-                                    onClick={() => router.push(`/game/${rmcsSession.gameToken}`)}
-                                    className="pixel-btn pixel-btn-secondary text-sm"
-                                    disabled={loading}
-                                >
-                                    ➡️ Rejoin
-                                </button>
-                                <button
-                                    onClick={handleLeaveRMCS}
-                                    className="pixel-btn text-sm"
-                                    style={{ background: 'var(--pixel-danger)', color: 'white', opacity: loading ? 0.5 : 1 }}
-                                    disabled={loading}
-                                >
-                                    Leave
-                                </button>
-                            </div>
-                        </div>
-                    </div>
-                )}
 
-                {/* Active Imposter Session Banner */}
-                {!checkingSession && imposterSession && (
-                    <div className="pixel-card p-4 mb-6" style={{ background: 'var(--pixel-primary-light)', borderColor: 'var(--pixel-dark)' }}>
-                        <div className="flex flex-col md:flex-row items-center justify-between gap-4">
-                            <div className="flex items-center gap-3">
-                                <span className="text-2xl">🕵️</span>
-                                <div>
-                                    <p className="font-bold" style={{ color: 'var(--pixel-dark)' }}>
-                                        Active Imposter Game: {imposterSession.gameToken}
-                                    </p>
-                                    <p className="text-sm" style={{ color: 'var(--pixel-dark)' }}>
-                                        Playing as {imposterSession.playerName} {imposterSession.isHost && '(Host)'} •
-                                        {imposterSession.playerCount} players •
-                                        Status: {imposterSession.gameStatus}
-                                    </p>
-                                </div>
-                            </div>
-                            <div className="flex gap-2">
-                                <button
-                                    onClick={() => router.push(`/imposter/${imposterSession.gameToken}`)}
-                                    className="pixel-btn pixel-btn-secondary text-sm"
-                                    disabled={loading}
-                                >
-                                    ➡️ Rejoin
-                                </button>
-                                <button
-                                    onClick={handleLeaveImposter}
-                                    className="pixel-btn text-sm"
-                                    style={{ background: 'var(--pixel-danger)', color: 'white', opacity: loading ? 0.5 : 1 }}
-                                    disabled={loading}
-                                >
-                                    Leave
-                                </button>
-                            </div>
-                        </div>
-                    </div>
-                )}
+                {/* Active Session Banners Removed - Replaced by GlobalGameNav */}
 
                 {/* Game Selection */}
                 {!selectedGame && (

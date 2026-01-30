@@ -2,6 +2,7 @@
 
 import { Redis } from '@upstash/redis';
 import { ImposterGame } from '@/types/imposter';
+import { pusherServer } from '@/lib/pusher';
 
 const redis = new Redis({
     url: process.env.UPSTASH_REDIS_REST_URL!,
@@ -19,6 +20,26 @@ export function generateImposterToken(): string {
         token += chars.charAt(Math.floor(Math.random() * chars.length));
     }
     return token;
+}
+
+// Check real-time presence via Pusher API
+export async function getOnlinePlayers(gameToken: string, playerIds: string[]): Promise<string[]> {
+    try {
+        const channelName = `presence-imposter-${gameToken}`;
+        // Fetch users from Pusher
+        const response = await pusherServer.get({ path: `/channels/${channelName}/users` });
+
+        if (response.status === 200) {
+            const data = await response.json();
+            const users = data.users as Array<{ id: string }>;
+            const onlineSet = new Set(users.map(u => u.id));
+            return playerIds.filter(id => onlineSet.has(id));
+        }
+        return [];
+    } catch (e) {
+        console.error('Failed to fetch Pusher presence:', e);
+        return playerIds; // Fallback to avoid blocking on error
+    }
 }
 
 // Create a brand new Imposter game
@@ -70,4 +91,56 @@ export async function generateUniqueImposterToken(): Promise<string> {
     }
 
     return token;
+}
+
+
+// Helper for spinlock to ensure atomic updates with "Enterprise Level" reliability
+// Retries heavily to ensure we "get the request again" if we miss the lock initially.
+async function acquireLock(gameToken: string, retries = 25): Promise<boolean> {
+    const lockKey = `${GAME_PREFIX}lock:${gameToken}`;
+    for (let i = 0; i < retries; i++) {
+        // SET NX (Not Exists) with 5 second expiry (auto-release safety net)
+        const acquired = await redis.set(lockKey, 'LOCKED', { nx: true, ex: 5 });
+        if (acquired) return true;
+
+        // Exponential-ish backoff with jitter
+        // Base wait increases slightly, plus random jitter to prevent thundering herd
+        // Range: 20ms to ~150ms per try. Total max wait time: ~2-3 seconds.
+        const baseWait = 20 + (i * 2);
+        const jitter = Math.random() * 80;
+        await new Promise(r => setTimeout(r, baseWait + jitter));
+    }
+    return false;
+}
+
+async function releaseLock(gameToken: string): Promise<void> {
+    const lockKey = `${GAME_PREFIX}lock:${gameToken}`;
+    try {
+        await redis.del(lockKey);
+    } catch (e) {
+        console.error('Failed to release lock (TTL will expire it):', e);
+    }
+}
+
+// Wrapper to safely modify game state with a lock
+export async function withGameLock<T>(
+    gameToken: string,
+    operation: (game: ImposterGame) => Promise<{ game: ImposterGame, result: T } | null>
+): Promise<T | null> {
+    const locked = await acquireLock(gameToken);
+    if (!locked) throw new Error('Could not acquire game lock - system busy');
+
+    try {
+        const game = await getImposterGame(gameToken);
+        if (!game) return null;
+
+        const output = await operation(game);
+        if (output) {
+            await updateImposterGame(gameToken, output.game);
+            return output.result;
+        }
+        return null;
+    } finally {
+        await releaseLock(gameToken);
+    }
 }

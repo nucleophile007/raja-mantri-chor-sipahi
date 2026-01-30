@@ -1,170 +1,141 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getImposterGame, updateImposterGame } from '@/lib/imposterStorage';
+import { withGameLock } from '@/lib/imposterStorage';
 import { allPlayersVoted, calculateVotingResult } from '@/lib/imposterLogic';
 import { broadcastImposterAction } from '@/lib/pusher';
+import { ImposterPlayer, ImposterGame } from '@/types/imposter';
+
+interface VoteResult {
+    alreadyVoted: boolean;
+    game: ImposterGame;
+    player: ImposterPlayer;
+    allVoted?: boolean;
+    gameEnded?: boolean;
+    endDetails?: {
+        mostVotedId: string;
+        isCorrect: boolean;
+        endReason: string;
+    } | null;
+}
 
 export async function POST(request: NextRequest) {
     try {
         const { gameToken, playerId, votedForName } = await request.json();
 
         if (!gameToken || !playerId || !votedForName) {
-            return NextResponse.json(
-                { error: 'Game token, player ID, and vote target name are required' },
-                { status: 400 }
-            );
+            return NextResponse.json({ error: 'Game token, player ID, and vote target are required' }, { status: 400 });
         }
 
-        const game = await getImposterGame(gameToken);
+        const result = await withGameLock<VoteResult>(gameToken, async (game) => {
+            const player = game.players.find(p => p.id === playerId);
+            if (!player || !player.isActive) throw new Error('Player not found or not active');
 
-        if (!game) {
-            return NextResponse.json(
-                { error: 'Game not found' },
-                { status: 404 }
-            );
-        }
+            if (game.gameStatus !== 'VOTING') throw new Error('Voting is not active');
+            if (player.hasVoted) return { game, result: { alreadyVoted: true, game, player } };
 
-        const player = game.players.find(p => p.id === playerId);
-        if (!player || !player.isActive) {
-            return NextResponse.json(
-                { error: 'Player not found or not active' },
-                { status: 404 }
-            );
-        }
+            const target = game.players.find(p => p.name === votedForName && p.isActive);
+            if (!target) throw new Error('Invalid vote target');
+            if (target.id === playerId) throw new Error('You cannot vote for yourself');
 
-        if (game.gameStatus !== 'VOTING') {
-            return NextResponse.json(
-                { error: 'Voting is not active' },
-                { status: 400 }
-            );
-        }
-
-        if (player.hasVoted) {
-            return NextResponse.json(
-                { error: 'You have already voted' },
-                { status: 400 }
-            );
-        }
-
-        // Find target by name (not by ID passed from client)
-        const target = game.players.find(p => p.name === votedForName && p.isActive);
-        if (!target) {
-            return NextResponse.json(
-                { error: 'Invalid vote target' },
-                { status: 400 }
-            );
-        }
-
-        // Can't vote for yourself
-        if (target.id === playerId) {
-            return NextResponse.json(
-                { error: 'You cannot vote for yourself' },
-                { status: 400 }
-            );
-        }
-
-        // Record vote (using actual ID internally, but never exposed to client)
-        game.votes.push({
-            voterId: playerId,
-            votedForId: target.id,
-            timestamp: Date.now()
-        });
-
-        // Mark player as voted
-        game.players = game.players.map(p =>
-            p.id === playerId ? { ...p, hasVoted: true } : p
-        );
-
-        // Calculate counts for instant UI
-        const activePlayers = game.players.filter(p => p.isActive);
-        const votedCount = activePlayers.filter(p => p.hasVoted).length;
-
-        // Broadcast vote action for instant UI update
-        await broadcastImposterAction(gameToken, {
-            type: 'PLAYER_VOTED',
-            voterName: player.name,
-            votedCount,
-            totalActive: activePlayers.length
-        });
-
-        // Milestone: First player voted!
-        if (votedCount === 1) {
-            await broadcastImposterAction(gameToken, {
-                type: 'MILESTONE',
-                message: `[FIRST VOTE] ${player.name} VOTED!`
-            });
-        }
-
-        // Check if all voted
-        if (allPlayersVoted(game.players)) {
-            // Milestone: All players voted!
-            await broadcastImposterAction(gameToken, {
-                type: 'MILESTONE',
-                message: '[ALL VOTES IN] REVEALING RESULTS...'
+            // Record vote
+            game.votes.push({
+                voterId: playerId,
+                votedForId: target.id,
+                timestamp: Date.now()
             });
 
-            // Calculate result
-            const { mostVotedId, isCorrect } = calculateVotingResult(game);
+            // Mark player
+            game.players = game.players.map(p =>
+                p.id === playerId ? { ...p, hasVoted: true } : p
+            );
 
-            game.gameStatus = 'RESULT';
-            game.result = isCorrect ? 'PLAYERS_WIN' : 'IMPOSTER_WINS';
-            game.endedAt = Date.now();
+            // Check completion
+            let gameEnded = false;
+            let endDetails = null;
 
-            let endReason: string;
-            if (!isCorrect && mostVotedId === '') {
-                endReason = 'Votes were tied - Imposter wins!';
-            } else if (!isCorrect) {
-                const wrongTarget = game.players.find(p => p.id === mostVotedId);
-                endReason = `${wrongTarget?.name} was not the imposter!`;
-            } else {
-                const imposter = game.players.find(p => p.id === game.imposterId);
-                endReason = `${imposter?.name} was the imposter!`;
+            const allVoted = allPlayersVoted(game.players);
+            if (allVoted) {
+                const { mostVotedId, isCorrect } = calculateVotingResult(game);
+
+                game.gameStatus = 'RESULT';
+                game.result = isCorrect ? 'PLAYERS_WIN' : 'IMPOSTER_WINS';
+                game.endedAt = Date.now();
+
+                let endReason: string;
+                if (!isCorrect && mostVotedId === '') {
+                    endReason = 'Votes were tied - Imposter wins!';
+                } else if (!isCorrect) {
+                    const wrongTarget = game.players.find(p => p.id === mostVotedId);
+                    endReason = `${wrongTarget?.name} was not the imposter!`;
+                } else {
+                    const imposter = game.players.find(p => p.id === game.imposterId);
+                    endReason = `${imposter?.name} was the imposter!`;
+                }
+                game.endReason = endReason;
+                gameEnded = true;
+                endDetails = { mostVotedId, isCorrect, endReason };
             }
-            game.endReason = endReason;
 
-            await updateImposterGame(gameToken, game);
+            return { game, result: { alreadyVoted: false, game, player, allVoted, gameEnded, endDetails } };
+        });
 
-            // Build vote results for broadcast
-            const voteCount: Record<string, number> = {};
-            game.votes.forEach(v => {
-                voteCount[v.votedForId] = (voteCount[v.votedForId] || 0) + 1;
-            });
+        if (!result) return NextResponse.json({ error: 'Game not found or lock failed' }, { status: 404 });
 
-            const voteResults = activePlayers
-                .map(p => ({
-                    playerName: p.name,
-                    voteCount: voteCount[p.id] || 0,
-                    isImposter: p.id === game.imposterId
-                }))
-                .sort((a, b) => b.voteCount - a.voteCount);
+        const { alreadyVoted, game, player, allVoted, gameEnded, endDetails } = result;
 
-            // Broadcast game ended action
+        if (!alreadyVoted) {
+            const activePlayers = game.players.filter(p => p.isActive);
+            const votedCount = activePlayers.filter(p => p.hasVoted).length;
+
+            // 1. Broadcast vote
             await broadcastImposterAction(gameToken, {
-                type: 'GAME_ENDED',
-                result: game.result,
-                imposterName: game.players.find(p => p.id === game.imposterId)?.name || 'Unknown',
-                endReason,
-                voteResults
+                type: 'PLAYER_VOTED',
+                voterName: player.name,
+                votedCount,
+                totalActive: activePlayers.length
             });
 
-            // Force refresh to ensure all clients see result screen
-            setTimeout(async () => {
-                await broadcastImposterAction(gameToken, {
-                    type: 'WORD_READY' // Reuse as generic refresh trigger
+            // 2. Milestones
+            if (votedCount === 1) {
+                await broadcastImposterAction(gameToken, { type: 'MILESTONE', message: `[FIRST VOTE] ${player.name} VOTED!` });
+            }
+
+            if (allVoted) {
+                await broadcastImposterAction(gameToken, { type: 'MILESTONE', message: '[ALL VOTES IN] REVEALING RESULTS...' });
+            }
+
+            // 3. Game Ended
+            if (gameEnded) {
+                // Build vote results
+                const voteCount: Record<string, number> = {};
+                game.votes.forEach(v => {
+                    voteCount[v.votedForId] = (voteCount[v.votedForId] || 0) + 1;
                 });
-            }, 500);
-        } else {
-            await updateImposterGame(gameToken, game);
+
+                const voteResults = activePlayers
+                    .map(p => ({
+                        playerName: p.name,
+                        voteCount: voteCount[p.id] || 0,
+                        isImposter: p.id === game.imposterId
+                    }))
+                    .sort((a, b) => b.voteCount - a.voteCount);
+
+                await broadcastImposterAction(gameToken, {
+                    type: 'GAME_ENDED',
+                    result: game.result!,
+                    imposterName: game.players.find(p => p.id === game.imposterId)?.name || 'Unknown',
+                    endReason: game.endReason!,
+                    voteResults
+                });
+
+                setTimeout(async () => {
+                    await broadcastImposterAction(gameToken, { type: 'WORD_READY' });
+                }, 500);
+            }
         }
 
-        return NextResponse.json({
-            success: true,
-            gameStatus: game.gameStatus
-        });
-    } catch (error) {
+        return NextResponse.json({ success: true, gameStatus: game.gameStatus, alreadyVoted });
+    } catch (error: any) {
         console.error('Error processing vote:', error);
-        return NextResponse.json(
-            { error: 'Failed to process vote' },
-            { status: 500 }
-        );
+        return NextResponse.json({ error: error.message || 'Failed to process vote' }, { status: 500 });
     }
 }

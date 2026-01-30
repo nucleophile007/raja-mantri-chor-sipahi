@@ -48,7 +48,8 @@ export default function ImposterRoom({ gameToken }: ImposterRoomProps) {
 
         try {
             const response = await fetch(
-                `/api/imposter/state?gameToken=${gameToken}&playerId=${playerId}`
+                `/api/imposter/state?gameToken=${gameToken}&playerId=${playerId}`,
+                { cache: 'no-store' }
             );
             const data = await response.json();
 
@@ -60,13 +61,11 @@ export default function ImposterRoom({ gameToken }: ImposterRoomProps) {
                     setCardContent(data.gameState.myCard);
                 }
 
-                // Clear session if game ended
-                if (data.gameState.gameStatus === 'RESULT') {
-                    localStorage.removeItem('imposter_playerId');
-                    localStorage.removeItem('imposter_gameToken');
-                }
+                // DO NOT clear session on RESULT, otherwise players can't restart
+                // Only clear if explicitly kicked or leaving
             } else if (data.error === 'Player not found in game') {
-                // Player was removed
+                // Only clear if genuine 404 (kicked/game deleted)
+                console.warn('Player not found, clearing session');
                 localStorage.removeItem('imposter_playerId');
                 localStorage.removeItem('imposter_gameToken');
                 router.push('/');
@@ -136,26 +135,30 @@ export default function ImposterRoom({ gameToken }: ImposterRoomProps) {
                     return prev;
 
                 case 'PLAYER_LEFT':
-                    // Show leave notification
-                    if (action.playerName) {
-                        setMilestoneToast(`[-] ${action.playerName} LEFT`);
+                case 'PLAYER_KICKED':
+                    // Show notification
+                    if (action.kickedPlayerName || action.playerName) {
+                        const name = action.kickedPlayerName || action.playerName;
+                        const msg = action.type === 'PLAYER_KICKED' ? `🚫 ${name} KICKED` : `[-] ${name} LEFT`;
+                        setMilestoneToast(msg);
                         setTimeout(() => setMilestoneToast(null), 3000);
                     }
 
-                    // Remove player or mark inactive, and update host
+                    // Remove player from list instantly based on broadcast
                     return {
                         ...prev,
                         amIHost: action.newHostName && prev.myName === action.newHostName ? true : prev.amIHost,
-                        players: prev.players.map(p =>
-                            p.name === action.playerName
-                                ? { ...p, isActive: false }
-                                : action.newHostName && p.name === action.newHostName
-                                    ? { ...p, isHost: true }
-                                    : p
+                        players: prev.players.filter(p =>
+                            p.name !== (action.kickedPlayerName || action.playerName)
+                        ).map(p =>
+                            action.newHostName && p.name === action.newHostName
+                                ? { ...p, isHost: true }
+                                : p
                         )
                     };
 
                 case 'PLAYER_SCRATCHED':
+                    console.log('⚡ Received PLAYER_SCRATCHED:', action.playerName);
                     // Mark player as scratched instantly
                     return {
                         ...prev,
@@ -289,6 +292,7 @@ export default function ImposterRoom({ gameToken }: ImposterRoomProps) {
     }, []);
 
     // Subscribe to game actions for INSTANT updates
+    // CRITICAL FIX: Must allow "game-action" on "imposter-" channel, NOT "presence-" channel.
     useGenericPusher(
         `imposter-${gameToken}`,
         'game-action',
@@ -301,34 +305,131 @@ export default function ImposterRoom({ gameToken }: ImposterRoomProps) {
         }
     );
 
-    // Heartbeat Loop (Enterprise Reliability)
-    useEffect(() => {
-        if (!playerId || !gameToken) return;
+    // Heartbeat Removed - Using Pusher Presence
+    // No regular POST calls to /api/heartbeat needed.
 
-        const sendHeartbeat = async () => {
+    // Track online players for real-time visualization
+    const [onlineNames, setOnlineNames] = useState<Set<string>>(new Set());
+
+    // Memoize handlers to prevent re-subscription loops
+    const handleMemberAdded = useCallback((data: any) => {
+        console.log('Member added:', data);
+        if (data.info && data.info.name) {
+            setMilestoneToast(`[+] ${data.info.name} ONLINE`);
+            setTimeout(() => setMilestoneToast(null), 3000);
+            setOnlineNames(prev => {
+                const newSet = new Set(prev);
+                newSet.add(data.info.name);
+                return newSet;
+            });
+        }
+    }, []);
+
+    const handleMemberRemoved = useCallback((data: any) => {
+        console.log('Member removed:', data);
+        if (data.info && data.info.name) {
+            setMilestoneToast(`[-] ${data.info.name} OFFLINE`);
+            setTimeout(() => setMilestoneToast(null), 3000);
+            setOnlineNames(prev => {
+                const newSet = new Set(prev);
+                newSet.delete(data.info.name);
+                return newSet;
+            });
+        }
+    }, []);
+
+    const handleSubscriptionSucceeded = useCallback((data: any) => {
+        // data.members is a map of ID -> Info
+        // But the raw event data structure from Pusher might be different or `data` here IS the members object?
+        // Actually, pusher-js client `pusher:subscription_succeeded` callback receives `members` object if bound on channel?
+        // Wait, standard bind('pusher:subscription_succeeded') on channel receives the members object? 
+        // No, typically you access channel.members. It's safer to rely on `pusher:member_added` for delta 
+        // BUT relying on delta misses initial state.
+        // Let's assume data has members.
+        console.log('Subscription succeeded', data);
+        // We can't easily iterate data.members if it's the pusher object.
+        // Let's rely on the fact that we fetch game state and `isOnline` can be derived?
+        // No, game state fetch is snapshot. Presence is live.
+        // Quick fix: Assume everyone in `gameState` is offline until we hear otherwise? relative.
+        // Better: Just track updates. 
+    }, []);
+    // Re-thinking: Accessing `channel.members` is best. 
+    // But `useGenericPusher` completely hides the channel.
+    // I should probably skip `handleSubscriptionSucceeded` for now and just rely on add/remove 
+    // AND assume everyone is ONLINE initially if I just fetched? No.
+
+    // NEW STRATEGY: 
+    // I will modify `useGenericPusher` in next step to return the channel or expose members?
+    // OR: I can just implement the listeners here and trust `member_added` will fire for NEW people.
+    // For existing people, I might miss them if I don't check `channel.members`.
+
+    // Let's stick to the current plan: Just Add/Remove for now, ensuring the "Toast" works. 
+    // The user asked for "player coming exiting in lobby". That is Add/Remove.
+    // I will keep the toast logic I have, but add state tracking so I can Gray them out later.
+
+    // Listen for Member Added/Removed to show toasts & update state
+    useGenericPusher(
+        `presence-imposter-${gameToken}`,
+        'pusher:member_added',
+        handleMemberAdded,
+        !!playerId
+    );
+
+    useGenericPusher(
+        `presence-imposter-${gameToken}`,
+        'pusher:member_removed',
+        handleMemberRemoved,
+        !!playerId
+    );
+
+    // Subscribe to subscription success to get initial count?
+    // Actually, `pusher:subscription_succeeded` provides `members` object in the callback data?
+    // Documentation says: `channel.bind('pusher:subscription_succeeded', (members) => ...)`
+    useGenericPusher(
+        `presence-imposter-${gameToken}`,
+        'pusher:subscription_succeeded',
+        (members: any) => {
+            // Pusher members object has .each() method
+            const names = new Set<string>();
+            if (members && members.each) {
+                members.each((member: any) => {
+                    if (member.info && member.info.name) {
+                        names.add(member.info.name);
+                    }
+                });
+                setOnlineNames(names);
+            }
+        },
+        !!playerId
+    );
+
+
+    // Pruning/Progress Check Loop (Lazy logic)
+    useEffect(() => {
+        if (!playerId || !gameToken || !gameState || gameState.gameStatus !== 'SCRATCHING') return;
+
+        // Only check progress every 15s during scratching phase
+        // This replaces the heavy logic that used to be in every heartbeat
+        const checkPrune = async () => {
             try {
-                await fetch('/api/imposter/heartbeat', {
+                await fetch('/api/imposter/check-prune', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ gameToken, playerId }),
-                    keepalive: true // Ensure request is sent even if tab closes (best effort)
                 });
             } catch (err) {
-                // Silent fail for heartbeat
+                // Silent fail
             }
         };
 
-        // Send immediately on join/load
-        sendHeartbeat();
-
-        // Then every 5 seconds (only if page is visible to save battery/network)
         const intervalId = setInterval(() => {
             if (!document.hidden) {
-                sendHeartbeat();
+                checkPrune();
             }
-        }, 5000);
+        }, 15000);
+
         return () => clearInterval(intervalId);
-    }, [gameToken, playerId]);
+    }, [gameToken, playerId, gameState?.gameStatus]);
 
     // Handle Force Start Voting (Host Override)
     const handleForceVoting = useCallback(async () => {
@@ -543,7 +644,13 @@ export default function ImposterRoom({ gameToken }: ImposterRoomProps) {
 
             const data = await response.json();
             if (!data.success) {
-                setError(data.error || 'Failed to start game');
+                // If game already started (race condition), just refresh to join.
+                if (data.error?.includes('already started') || data.error?.includes('active')) {
+                    console.warn('Game already started, syncing...');
+                    fetchState(true);
+                } else {
+                    setError(data.error || 'Failed to start game');
+                }
             }
         } catch (err) {
             setError('Failed to start game. Please try again.');
@@ -672,7 +779,31 @@ export default function ImposterRoom({ gameToken }: ImposterRoomProps) {
                 })
             });
             const data = await response.json();
-            if (!data.success) alert(data.error);
+            if (!data.success) {
+                // "Industry Level" Handling:
+                // If backend says "Not Found", it means they are gone. Trust the backend.
+                // We don't need to refresh the whole world, just remove the ghost player locally.
+                if (data.error === 'Target player not found' || data.error?.includes('not found')) {
+                    console.warn('Kick race condition: Player already left. Syncing UI.');
+
+                    setMilestoneToast('⚠️ Player already left');
+                    setTimeout(() => setMilestoneToast(null), 2000);
+
+                    // Optimistic removal (Instant UI update)
+                    setGameState(prev => {
+                        if (!prev) return prev;
+                        return {
+                            ...prev,
+                            players: prev.players.filter(p => p.name !== targetPlayerName)
+                        };
+                    });
+
+                    // Background sync just to be safe (no loading spinner)
+                    fetchState(false);
+                } else {
+                    alert(data.error);
+                }
+            }
         } catch (e) {
             alert('Failed to kick player');
         } finally {
@@ -969,8 +1100,8 @@ export default function ImposterRoom({ gameToken }: ImposterRoomProps) {
                                 🎴 Your Card
                             </h2>
 
-                            <div className="flex-none flex justify-center mb-2">
-                                <div className="transform scale-90 origin-top">
+                            <div className="flex-none flex justify-center mb-2 w-full">
+                                <div className="w-full max-w-sm">
                                     <ScratchCard
                                         onComplete={handleScratch}
                                         cardContent={cardContent}

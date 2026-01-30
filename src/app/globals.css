@@ -415,3 +415,20 @@ body {
 :root {
   --pixel-warning: #ffd803;
 }
+
+/* Slide Down Animation for Global Nav */
+@keyframes slideDown {
+  from {
+    transform: translateY(-100%);
+    opacity: 0;
+  }
+
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+.animate-slide-down {
+  animation: slideDown 0.5s ease-out forwards;
+}
