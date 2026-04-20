@@ -339,52 +339,61 @@ export default function GameArcade() {
 
                 {/* Game Selection */}
                 {!selectedGame && (
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
-                        {/* RMCS Game Card */}
-                        <button
-                            onClick={() => setSelectedGame('rmcs')}
-                            className="pixel-card p-6 text-left hover:scale-[1.02] transition-transform cursor-pointer"
-                            style={{ border: '4px solid var(--pixel-dark)' }}
-                        >
-                            <div className="flex justify-center gap-2 mb-4">
-                                <PixelRaja size={48} />
-                                <PixelMantri size={48} />
-                                <PixelChor size={48} />
-                                <PixelSipahi size={48} />
-                            </div>
-                            <h2 className="pixel-text text-center mb-2" style={{ color: 'var(--pixel-dark)' }}>
-                                👑 RMCS
-                            </h2>
-                            <p className="text-sm text-center mb-4" style={{ color: 'var(--pixel-dark)' }}>
-                                Raja Mantri Chor Sipahi
-                            </p>
-                            <div className="flex justify-center gap-4 text-xs" style={{ color: 'var(--pixel-dark)' }}>
-                                <span>👥 4 players</span>
-                                <span>⏱️ 5-15 min</span>
-                            </div>
-                        </button>
+                    <>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+                            {/* RMCS Game Card */}
+                            <button
+                                onClick={() => setSelectedGame('rmcs')}
+                                className="pixel-card p-6 text-left hover:scale-[1.02] transition-transform cursor-pointer"
+                                style={{ border: '4px solid var(--pixel-dark)' }}
+                            >
+                                <div className="flex justify-center gap-2 mb-4">
+                                    <PixelRaja size={48} />
+                                    <PixelMantri size={48} />
+                                    <PixelChor size={48} />
+                                    <PixelSipahi size={48} />
+                                </div>
+                                <h2 className="pixel-text text-center mb-2" style={{ color: 'var(--pixel-dark)' }}>
+                                    👑 RMCS
+                                </h2>
+                                <p className="text-sm text-center mb-4" style={{ color: 'var(--pixel-dark)' }}>
+                                    Raja Mantri Chor Sipahi
+                                </p>
+                                <div className="flex justify-center gap-4 text-xs" style={{ color: 'var(--pixel-dark)' }}>
+                                    <span>👥 4 players</span>
+                                    <span>⏱️ 5-15 min</span>
+                                </div>
+                            </button>
 
-                        {/* Imposter Game Card */}
-                        <button
-                            onClick={() => setSelectedGame('imposter')}
-                            className="pixel-card p-6 text-left hover:scale-[1.02] transition-transform cursor-pointer"
-                            style={{ border: '4px solid var(--pixel-dark)' }}
-                        >
-                            <div className="flex justify-center mb-4">
-                                <span className="text-6xl">🕵️</span>
-                            </div>
-                            <h2 className="pixel-text text-center mb-2" style={{ color: 'var(--pixel-dark)' }}>
-                                🎭 Imposter
-                            </h2>
-                            <p className="text-sm text-center mb-4" style={{ color: 'var(--pixel-dark)' }}>
-                                Find the Imposter among you
+                            {/* Imposter Game Card */}
+                            <button
+                                onClick={() => setSelectedGame('imposter')}
+                                className="pixel-card p-6 text-left hover:scale-[1.02] transition-transform cursor-pointer"
+                                style={{ border: '4px solid var(--pixel-dark)' }}
+                            >
+                                <div className="flex justify-center mb-4">
+                                    <span className="text-6xl">🕵️</span>
+                                </div>
+                                <h2 className="pixel-text text-center mb-2" style={{ color: 'var(--pixel-dark)' }}>
+                                    🎭 Imposter
+                                </h2>
+                                <p className="text-sm text-center mb-4" style={{ color: 'var(--pixel-dark)' }}>
+                                    Find the Imposter among you
+                                </p>
+                                <div className="flex justify-center gap-4 text-xs" style={{ color: 'var(--pixel-dark)' }}>
+                                    <span>👥 3-20 players</span>
+                                    <span>⏱️ 5-10 min</span>
+                                </div>
+                            </button>
+                        </div>
+                        
+                        <div id="mobile_app" className="pixel-card p-4 text-center mt-2 mb-8 bg-white/50" style={{ border: '4px solid var(--pixel-dark)' }}>
+                            <h2 className="pixel-text text-sm md:text-base mb-1" style={{ color: 'var(--pixel-dark)' }}>📱 Mobile App Available</h2>
+                            <p className="text-xs md:text-sm" style={{ color: 'var(--pixel-dark)' }}>
+                                Request me at <a href="mailto:dkdps3212@gmail.com" className="font-bold underline break-all">dkdps3212@gmail.com</a> to get apk and .ipa file
                             </p>
-                            <div className="flex justify-center gap-4 text-xs" style={{ color: 'var(--pixel-dark)' }}>
-                                <span>👥 3-20 players</span>
-                                <span>⏱️ 5-10 min</span>
-                            </div>
-                        </button>
-                    </div>
+                        </div>
+                    </>
                 )}
 
                 {/* RMCS Flow */}
