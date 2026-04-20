@@ -3,6 +3,7 @@ import { withGameLock, deleteImposterGame } from '@/lib/imposterStorage';
 import { checkGameEndCondition, transferHost } from '@/lib/imposterLogic';
 import { broadcastImposterAction } from '@/lib/pusher';
 import { ImposterPlayer } from '@/types/imposter';
+import { getSessionCredentials } from '@/lib/imposterSession';
 
 interface LeaveResult {
     gameDeleted: boolean;
@@ -13,21 +14,14 @@ interface LeaveResult {
 
 export async function POST(request: NextRequest) {
     try {
-        let { gameToken, playerId } = await request.json();
-
-        // Fallback to cookie if missing
-        if (!gameToken || !playerId) {
-            const sessionCookie = request.cookies.get('imposter_session');
-            if (sessionCookie) {
-                try {
-                    const sessionData = JSON.parse(sessionCookie.value);
-                    if (!gameToken) gameToken = sessionData.gameToken;
-                    if (!playerId) playerId = sessionData.playerId;
-                } catch (e) {
-                    // Invalid cookie
-                }
-            }
+        let body: { gameToken?: string; playerId?: string } | null = null;
+        try {
+            body = await request.json();
+        } catch {
+            // Allow empty body for web cookie-based leave flow
         }
+
+        const { gameToken, playerId, source } = getSessionCredentials(request, body);
 
         if (!gameToken || !playerId) {
             return NextResponse.json({ error: 'Game token and player ID are required' }, { status: 400 });
@@ -150,6 +144,7 @@ export async function POST(request: NextRequest) {
 
         const response = NextResponse.json({ success: true, gameEnded });
         response.cookies.delete('imposter_session');
+        response.headers.set('x-session-source', source);
         return response;
 
     } catch (error: any) {

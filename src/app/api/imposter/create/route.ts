@@ -68,7 +68,13 @@ export async function POST(request: NextRequest) {
             success: true,
             gameToken,
             playerId,
-            playerName: host.name
+            playerName: host.name,
+            session: {
+                gameToken,
+                playerId,
+                expiresInSeconds: 60 * 60 * 24,
+                transport: 'header-or-body'
+            }
         });
 
         // Set session cookie

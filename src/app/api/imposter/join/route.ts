@@ -73,11 +73,17 @@ export async function POST(request: NextRequest) {
             success: true,
             gameToken: gameToken.toUpperCase(), // Normalize token
             playerId,
-            playerName: newPlayer.name
+            playerName: newPlayer.name,
+            session: {
+                gameToken: gameToken.toUpperCase(),
+                playerId,
+                expiresInSeconds: 60 * 60 * 24,
+                transport: 'header-or-body'
+            }
         });
 
         // Set session cookie
-        response.cookies.set('imposter_session', JSON.stringify({ gameToken, playerId }), {
+        response.cookies.set('imposter_session', JSON.stringify({ gameToken: gameToken.toUpperCase(), playerId }), {
             httpOnly: true,
             path: '/',
             maxAge: 60 * 60 * 24 // 24 hours

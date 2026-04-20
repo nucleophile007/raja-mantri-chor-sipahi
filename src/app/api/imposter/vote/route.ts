@@ -3,6 +3,7 @@ import { withGameLock } from '@/lib/imposterStorage';
 import { allPlayersVoted, calculateVotingResult } from '@/lib/imposterLogic';
 import { broadcastImposterAction } from '@/lib/pusher';
 import { ImposterPlayer, ImposterGame } from '@/types/imposter';
+import { getSessionCredentials } from '@/lib/imposterSession';
 
 interface VoteResult {
     alreadyVoted: boolean;
@@ -19,10 +20,18 @@ interface VoteResult {
 
 export async function POST(request: NextRequest) {
     try {
-        const { gameToken, playerId, votedForName } = await request.json();
+        let body: { gameToken?: string; playerId?: string; votedForName?: string } | null = null;
+        try {
+            body = await request.json();
+        } catch {
+            // Allow header/cookie driven auth for mobile
+        }
+
+        const { gameToken, playerId } = getSessionCredentials(request, body);
+        const votedForName = body?.votedForName;
 
         if (!gameToken || !playerId || !votedForName) {
-            return NextResponse.json({ error: 'Game token, player ID, and vote target are required' }, { status: 400 });
+            return NextResponse.json({ success: false, error: 'Game token, player ID, and vote target are required' }, { status: 400 });
         }
 
         const result = await withGameLock<VoteResult>(gameToken, async (game) => {
@@ -78,7 +87,7 @@ export async function POST(request: NextRequest) {
             return { game, result: { alreadyVoted: false, game, player, allVoted, gameEnded, endDetails } };
         });
 
-        if (!result) return NextResponse.json({ error: 'Game not found or lock failed' }, { status: 404 });
+        if (!result) return NextResponse.json({ success: false, error: 'Game not found or lock failed' }, { status: 404 });
 
         const { alreadyVoted, game, player, allVoted, gameEnded, endDetails } = result;
 
@@ -136,6 +145,6 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ success: true, gameStatus: game.gameStatus, alreadyVoted });
     } catch (error: any) {
         console.error('Error processing vote:', error);
-        return NextResponse.json({ error: error.message || 'Failed to process vote' }, { status: 500 });
+        return NextResponse.json({ success: false, error: error.message || 'Failed to process vote' }, { status: 500 });
     }
 }

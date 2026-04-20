@@ -3,6 +3,7 @@ import { withGameLock } from '@/lib/imposterStorage';
 import { selectImposter, MIN_PLAYERS } from '@/lib/imposterLogic';
 import { broadcastImposterAction } from '@/lib/pusher';
 import { generateWord } from '@/lib/gemini';
+import { getSessionCredentials } from '@/lib/imposterSession';
 
 interface StartResult {
     started: boolean;
@@ -10,10 +11,17 @@ interface StartResult {
 
 export async function POST(request: NextRequest) {
     try {
-        const { gameToken, playerId } = await request.json();
+        let body: { gameToken?: string; playerId?: string } | null = null;
+        try {
+            body = await request.json();
+        } catch {
+            // Allow header/cookie driven auth for mobile
+        }
+
+        const { gameToken, playerId } = getSessionCredentials(request, body);
 
         if (!gameToken || !playerId) {
-            return NextResponse.json({ error: 'Game token and player ID are required' }, { status: 400 });
+            return NextResponse.json({ success: false, error: 'Game token and player ID are required' }, { status: 400 });
         }
 
         const result = await withGameLock<StartResult>(gameToken, async (game) => {
@@ -55,7 +63,7 @@ export async function POST(request: NextRequest) {
             return { game, result: { started: true } };
         });
 
-        if (!result) return NextResponse.json({ error: 'Game not found or lock failed' }, { status: 404 });
+        if (!result) return NextResponse.json({ success: false, error: 'Game not found or lock failed' }, { status: 404 });
 
         // Broadcast
         await broadcastImposterAction(gameToken, {
@@ -67,6 +75,6 @@ export async function POST(request: NextRequest) {
 
     } catch (error: any) {
         console.error('Error starting game:', error);
-        return NextResponse.json({ error: error.message || 'Failed to start game' }, { status: 500 });
+        return NextResponse.json({ success: false, error: error.message || 'Failed to start game' }, { status: 500 });
     }
 }

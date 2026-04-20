@@ -1,13 +1,22 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getImposterGame, updateImposterGame } from '@/lib/imposterStorage';
+import { getSessionCredentials } from '@/lib/imposterSession';
 
 export async function POST(request: NextRequest) {
     try {
-        const { gameToken, playerId, votingTimeout } = await request.json();
+        let body: { gameToken?: string; playerId?: string; votingTimeout?: number } | null = null;
+        try {
+            body = await request.json();
+        } catch {
+            // Allow header/cookie driven auth for mobile
+        }
+
+        const { gameToken, playerId } = getSessionCredentials(request, body);
+        const votingTimeout = body?.votingTimeout;
 
         if (!gameToken || !playerId || votingTimeout === undefined) {
             return NextResponse.json(
-                { error: 'Game token, player ID, and voting timeout are required' },
+                { success: false, error: 'Game token, player ID, and voting timeout are required' },
                 { status: 400 }
             );
         }
@@ -15,7 +24,7 @@ export async function POST(request: NextRequest) {
         // Validate timeout range (30-180 seconds)
         if (votingTimeout < 30 || votingTimeout > 180) {
             return NextResponse.json(
-                { error: 'Voting timeout must be between 30 and 180 seconds' },
+                { success: false, error: 'Voting timeout must be between 30 and 180 seconds' },
                 { status: 400 }
             );
         }
@@ -24,7 +33,7 @@ export async function POST(request: NextRequest) {
 
         if (!game) {
             return NextResponse.json(
-                { error: 'Game not found' },
+                { success: false, error: 'Game not found' },
                 { status: 404 }
             );
         }
@@ -33,7 +42,7 @@ export async function POST(request: NextRequest) {
         const player = game.players.find(p => p.id === playerId);
         if (!player?.isHost) {
             return NextResponse.json(
-                { error: 'Only host can change timeout' },
+                { success: false, error: 'Only host can change timeout' },
                 { status: 403 }
             );
         }
@@ -41,7 +50,7 @@ export async function POST(request: NextRequest) {
         // Only allow changing in WAITING state
         if (game.gameStatus !== 'WAITING') {
             return NextResponse.json(
-                { error: 'Can only change timeout in lobby' },
+                { success: false, error: 'Can only change timeout in lobby' },
                 { status: 400 }
             );
         }
@@ -56,7 +65,7 @@ export async function POST(request: NextRequest) {
     } catch (error) {
         console.error('Error updating voting timeout:', error);
         return NextResponse.json(
-            { error: 'Failed to update timeout' },
+            { success: false, error: 'Failed to update timeout' },
             { status: 500 }
         );
     }

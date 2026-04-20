@@ -2,14 +2,22 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getImposterGame, updateImposterGame } from '@/lib/imposterStorage';
 import { calculateVotingResult } from '@/lib/imposterLogic';
 import { broadcastImposterAction } from '@/lib/pusher';
+import { getSessionCredentials } from '@/lib/imposterSession';
 
 export async function POST(request: NextRequest) {
     try {
-        const { gameToken, playerId } = await request.json();
+        let body: { gameToken?: string; playerId?: string } | null = null;
+        try {
+            body = await request.json();
+        } catch {
+            // Allow header/cookie driven auth for mobile
+        }
+
+        const { gameToken, playerId } = getSessionCredentials(request, body);
 
         if (!gameToken || !playerId) {
             return NextResponse.json(
-                { error: 'Game token and player ID are required' },
+                { success: false, error: 'Game token and player ID are required' },
                 { status: 400 }
             );
         }
@@ -18,7 +26,7 @@ export async function POST(request: NextRequest) {
 
         if (!game) {
             return NextResponse.json(
-                { error: 'Game not found' },
+                { success: false, error: 'Game not found' },
                 { status: 404 }
             );
         }
@@ -35,7 +43,7 @@ export async function POST(request: NextRequest) {
         // Check if voting has timed out
         if (!game.votingStartedAt) {
             return NextResponse.json(
-                { error: 'Voting start time not set' },
+                { success: false, error: 'Voting start time not set' },
                 { status: 400 }
             );
         }
@@ -118,7 +126,7 @@ export async function POST(request: NextRequest) {
     } catch (error) {
         console.error('Error checking voting timeout:', error);
         return NextResponse.json(
-            { error: 'Failed to check timeout' },
+            { success: false, error: 'Failed to check timeout' },
             { status: 500 }
         );
     }

@@ -56,3 +56,13 @@ remotion.config.ts
 .agents/
 .claude/
 .gemini/
+
+# IDEs and Editors
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS files
+.DS_Store
+Thumbs.db

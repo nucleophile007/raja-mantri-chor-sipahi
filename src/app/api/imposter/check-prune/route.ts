@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getOnlinePlayers, withGameLock } from '@/lib/imposterStorage';
 import { broadcastImposterRefresh } from '@/lib/pusher';
+import { getSessionCredentials } from '@/lib/imposterSession';
 
 interface PruneResult {
     noOp?: boolean;
@@ -9,10 +10,17 @@ interface PruneResult {
 
 export async function POST(request: NextRequest) {
     try {
-        const { gameToken, playerId } = await request.json();
+        let body: { gameToken?: string; playerId?: string } | null = null;
+        try {
+            body = await request.json();
+        } catch {
+            // Allow header/cookie driven auth for mobile
+        }
+
+        const { gameToken, playerId } = getSessionCredentials(request, body);
 
         if (!gameToken || !playerId) {
-            return NextResponse.json({ error: 'Missing fields' }, { status: 400 });
+            return NextResponse.json({ success: false, error: 'Missing fields' }, { status: 400 });
         }
 
         // We use lock because we might change game state (prune players or change phase)
@@ -60,6 +68,6 @@ export async function POST(request: NextRequest) {
 
     } catch (error) {
         console.error('Check-Prune error:', error);
-        return NextResponse.json({ error: 'Internal error' }, { status: 500 });
+        return NextResponse.json({ success: false, error: 'Internal error' }, { status: 500 });
     }
 }

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { withGameLock } from '@/lib/imposterStorage';
 import { pusherServer } from '@/lib/pusher';
 import { ImposterGameAction, ImposterPlayer } from '@/types/imposter';
+import { getSessionCredentials } from '@/lib/imposterSession';
 
 interface KickResult {
     kickedPlayer: ImposterPlayer;
@@ -9,12 +10,25 @@ interface KickResult {
 
 export async function POST(request: NextRequest) {
     try {
-        const body = await request.json();
-        const { gameToken, playerId, targetPlayerId, targetPlayerName } = body;
+        let body: {
+            gameToken?: string;
+            playerId?: string;
+            targetPlayerId?: string;
+            targetPlayerName?: string;
+        } | null = null;
+        try {
+            body = await request.json();
+        } catch {
+            // Allow header/cookie driven auth for mobile
+        }
+
+        const { gameToken, playerId } = getSessionCredentials(request, body);
+        const targetPlayerId = body?.targetPlayerId;
+        const targetPlayerName = body?.targetPlayerName;
 
         if (!gameToken || !playerId || (!targetPlayerId && !targetPlayerName)) {
             return NextResponse.json(
-                { error: 'Missing required fields' },
+                { success: false, error: 'Missing required fields' },
                 { status: 400 }
             );
         }
@@ -58,7 +72,7 @@ export async function POST(request: NextRequest) {
 
         if (!result) {
             return NextResponse.json(
-                { error: 'Game not found or lock failed' },
+                { success: false, error: 'Game not found or lock failed' },
                 { status: 404 }
             );
         }
@@ -82,7 +96,7 @@ export async function POST(request: NextRequest) {
     } catch (error: any) {
         console.error('Error kicking player:', error);
         return NextResponse.json(
-            { error: error?.message || 'Failed to kick player' },
+            { success: false, error: error?.message || 'Failed to kick player' },
             { status: error?.message?.includes('found') ? 404 : 400 }
         );
     }

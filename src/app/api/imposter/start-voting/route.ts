@@ -1,15 +1,24 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getImposterGame, updateImposterGame } from '@/lib/imposterStorage';
 import { toClientState } from '@/lib/imposterLogic';
-import { broadcastImposterUpdate } from '@/lib/pusher';
+import { broadcastImposterUpdate, broadcastImposterAction } from '@/lib/pusher';
+import { getSessionCredentials } from '@/lib/imposterSession';
 
 export async function POST(request: NextRequest) {
     try {
-        const { gameToken, playerId } = await request.json();
+        let body: { gameToken?: string; playerId?: string; force?: boolean } | null = null;
+        try {
+            body = await request.json();
+        } catch {
+            // Allow header/cookie driven auth for mobile
+        }
+
+        const { gameToken, playerId } = getSessionCredentials(request, body);
+        const force = Boolean(body?.force);
 
         if (!gameToken || !playerId) {
             return NextResponse.json(
-                { error: 'Game token and player ID are required' },
+                { success: false, error: 'Game token and player ID are required' },
                 { status: 400 }
             );
         }
@@ -18,7 +27,7 @@ export async function POST(request: NextRequest) {
 
         if (!game) {
             return NextResponse.json(
-                { error: 'Game not found' },
+                { success: false, error: 'Game not found' },
                 { status: 404 }
             );
         }
@@ -27,20 +36,18 @@ export async function POST(request: NextRequest) {
         const player = game.players.find(p => p.id === playerId);
         if (!player?.isHost) {
             return NextResponse.json(
-                { error: 'Only host can start voting' },
+                { success: false, error: 'Only host can start voting' },
                 { status: 403 }
             );
         }
 
         if (game.gameStatus !== 'DISCUSSION') {
-            const { force } = await request.json().catch(() => ({}));
-
             // Allow force start from SCRATCHING or CARDS_DEALT if host requests it
             if (force && (game.gameStatus === 'SCRATCHING' || game.gameStatus === 'CARDS_DEALT')) {
                 console.log('⚠️ Force starting voting from', game.gameStatus);
             } else {
                 return NextResponse.json(
-                    { error: 'Voting can only be started during discussion phase' },
+                    { success: false, error: 'Voting can only be started during discussion phase' },
                     { status: 400 }
                 );
             }
@@ -59,7 +66,15 @@ export async function POST(request: NextRequest) {
 
         await updateImposterGame(gameToken, game);
 
-        // Broadcast to all players
+        // Broadcast to all players using modern explicit action for Native Mobile Apps
+        await broadcastImposterAction(gameToken, {
+            type: 'GAME_STARTED',
+            status: 'VOTING',
+            votingStartedAt: game.votingStartedAt,
+            votingTimeout: game.votingTimeout || 120,
+        } as any);
+
+        // Also broadcast legacy full update
         for (const p of game.players.filter(pl => pl.isActive)) {
             const clientState = toClientState(game, p.id);
             await broadcastImposterUpdate(gameToken, clientState);
@@ -72,7 +87,7 @@ export async function POST(request: NextRequest) {
     } catch (error) {
         console.error('Error starting voting:', error);
         return NextResponse.json(
-            { error: 'Failed to start voting' },
+            { success: false, error: 'Failed to start voting' },
             { status: 500 }
         );
     }

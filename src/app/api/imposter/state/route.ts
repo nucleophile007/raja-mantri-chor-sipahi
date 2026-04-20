@@ -1,16 +1,25 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getImposterGame } from '@/lib/imposterStorage';
 import { toClientState } from '@/lib/imposterLogic';
+import { getSessionCredentials } from '@/lib/imposterSession';
 
 export async function GET(request: NextRequest) {
     try {
         const { searchParams } = new URL(request.url);
-        const gameToken = searchParams.get('gameToken');
-        const playerId = searchParams.get('playerId');
+        let gameToken = searchParams.get('gameToken')?.toUpperCase() || null;
+        let playerId = searchParams.get('playerId');
+        let source: 'query' | 'headers' | 'cookie' | 'none' | 'body' = 'query';
+
+        if (!gameToken || !playerId) {
+            const creds = getSessionCredentials(request);
+            if (!gameToken) gameToken = creds.gameToken;
+            if (!playerId) playerId = creds.playerId;
+            source = creds.source;
+        }
 
         if (!gameToken) {
             return NextResponse.json(
-                { error: 'Game token is required' },
+                { success: false, error: 'Game token is required', source: 'none' },
                 { status: 400 }
             );
         }
@@ -19,7 +28,7 @@ export async function GET(request: NextRequest) {
 
         if (!game) {
             return NextResponse.json(
-                { error: 'Game not found' },
+                { success: false, error: 'Game not found', source },
                 { status: 404 }
             );
         }
@@ -29,7 +38,7 @@ export async function GET(request: NextRequest) {
             const player = game.players.find(p => p.id === playerId);
             if (!player) {
                 return NextResponse.json(
-                    { error: 'Player not found in game' },
+                    { success: false, error: 'Player not found in game', source },
                     { status: 404 }
                 );
             }
@@ -63,6 +72,7 @@ export async function GET(request: NextRequest) {
 
             return NextResponse.json({
                 success: true,
+                source,
                 gameState: toClientState(game, playerId)
             });
         }
@@ -70,6 +80,7 @@ export async function GET(request: NextRequest) {
         // If no playerId, return basic game info (for join page preview)
         return NextResponse.json({
             success: true,
+            source,
             gameState: {
                 gameToken: game.gameToken,
                 gameStatus: game.gameStatus,
@@ -80,7 +91,7 @@ export async function GET(request: NextRequest) {
     } catch (error) {
         console.error('Error fetching Imposter game state:', error);
         return NextResponse.json(
-            { error: 'Failed to fetch game state' },
+            { success: false, error: 'Failed to fetch game state', source: 'none' },
             { status: 500 }
         );
     }

@@ -1,44 +1,26 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getImposterGame } from '@/lib/imposterStorage';
+import { getSessionCredentials } from '@/lib/imposterSession';
 
 export async function POST(request: NextRequest) {
     try {
-        let playerId: string | undefined;
-        let gameToken: string | null = null;
+        let body: { playerId?: string; gameToken?: string } | null = null;
 
         // Try reading from JSON body
         try {
-            const body = await request.json();
-            playerId = body.playerId;
-            gameToken = body.gameToken;
-        } catch (e) {
+            body = await request.json();
+        } catch {
             // Body might be empty
         }
 
-        // Fallback to headers
-        if (!gameToken) {
-            gameToken = request.headers.get('x-game-token');
-        }
-
-        // Fallback to Cookie (Auto-recovery of session)
-        if (!gameToken || !playerId) {
-            const sessionCookie = request.cookies.get('imposter_session');
-            if (sessionCookie) {
-                try {
-                    const sessionData = JSON.parse(sessionCookie.value);
-                    gameToken = sessionData.gameToken;
-                    playerId = sessionData.playerId;
-                } catch (e) {
-                    // Invalid cookie
-                }
-            }
-        }
+        const { gameToken, playerId, source } = getSessionCredentials(request, body);
 
         if (!gameToken || !playerId) {
             return NextResponse.json({
                 hasSession: false,
                 valid: false, // Legacy support
-                currentGame: null
+                currentGame: null,
+                source: 'none'
             });
         }
 
@@ -48,7 +30,8 @@ export async function POST(request: NextRequest) {
             return NextResponse.json({
                 hasSession: false,
                 valid: false,
-                currentGame: null
+                currentGame: null,
+                source
             });
         }
 
@@ -61,17 +44,25 @@ export async function POST(request: NextRequest) {
             return NextResponse.json({
                 hasSession: false,
                 valid: false,
-                currentGame: null
+                currentGame: null,
+                source
             });
         }
 
         return NextResponse.json({
             hasSession: true,
             valid: true, // Legacy field
+            source,
             gameToken: game.gameToken, // Top level for easy access
             playerName: player.name,
             playerId: player.id, // Return ID to allow client to heal localStorage
             isHost: player.isHost,
+            session: {
+                gameToken: game.gameToken,
+                playerId: player.id,
+                expiresInSeconds: 60 * 60 * 24,
+                transport: 'header-or-body'
+            },
             currentGame: {
                 gameToken: game.gameToken,
                 playerName: player.name,
@@ -85,7 +76,8 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({
             hasSession: false,
             valid: false,
-            currentGame: null
+            currentGame: null,
+            source: 'none'
         });
     }
 }

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { withGameLock } from '@/lib/imposterStorage';
 import { broadcastImposterAction } from '@/lib/pusher';
 import { ImposterPlayer } from '@/types/imposter';
+import { getSessionCredentials } from '@/lib/imposterSession';
 
 interface RestartResult {
     isHost: boolean;
@@ -12,10 +13,17 @@ interface RestartResult {
 
 export async function POST(request: NextRequest) {
     try {
-        const { gameToken, playerId } = await request.json();
+        let body: { gameToken?: string; playerId?: string } | null = null;
+        try {
+            body = await request.json();
+        } catch {
+            // Allow header/cookie driven auth for mobile
+        }
+
+        const { gameToken, playerId } = getSessionCredentials(request, body);
 
         if (!gameToken || !playerId) {
-            return NextResponse.json({ error: 'Game token and player ID are required' }, { status: 400 });
+            return NextResponse.json({ success: false, error: 'Game token and player ID are required' }, { status: 400 });
         }
 
         const result = await withGameLock<RestartResult>(gameToken, async (game) => {
@@ -65,7 +73,7 @@ export async function POST(request: NextRequest) {
             }
         });
 
-        if (!result) return NextResponse.json({ error: 'Game not found or lock failed' }, { status: 404 });
+        if (!result) return NextResponse.json({ success: false, error: 'Game not found or lock failed' }, { status: 404 });
 
         const { isHost, waitingForHost, inLobby, player } = result;
 
@@ -107,10 +115,10 @@ export async function POST(request: NextRequest) {
             });
         }
 
-        return NextResponse.json({ success: false, error: 'Unknown state' });
+        return NextResponse.json({ success: false, error: 'Unknown state' }, { status: 400 });
 
     } catch (error: any) {
         console.error('Error returning to lobby:', error);
-        return NextResponse.json({ error: error.message || 'Failed to return to lobby' }, { status: 500 });
+        return NextResponse.json({ success: false, error: error.message || 'Failed to return to lobby' }, { status: 500 });
     }
 }

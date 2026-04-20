@@ -3,6 +3,7 @@ import { withGameLock } from '@/lib/imposterStorage';
 import { allPlayersScratched } from '@/lib/imposterLogic';
 import { broadcastImposterAction } from '@/lib/pusher';
 import { ImposterPlayer, ImposterGame } from '@/types/imposter';
+import { getSessionCredentials } from '@/lib/imposterSession';
 
 interface ScratchResult {
     alreadyScratched: boolean;
@@ -13,10 +14,17 @@ interface ScratchResult {
 
 export async function POST(request: NextRequest) {
     try {
-        const { gameToken, playerId } = await request.json();
+        let body: { gameToken?: string; playerId?: string } | null = null;
+        try {
+            body = await request.json();
+        } catch {
+            // Allow header/cookie driven auth for mobile
+        }
+
+        const { gameToken, playerId } = getSessionCredentials(request, body);
 
         if (!gameToken || !playerId) {
-            return NextResponse.json({ error: 'Game token and player ID are required' }, { status: 400 });
+            return NextResponse.json({ success: false, error: 'Game token and player ID are required' }, { status: 400 });
         }
 
         // Use distributed lock to ensure atomic updates
@@ -54,7 +62,7 @@ export async function POST(request: NextRequest) {
         });
 
         if (!result) {
-            return NextResponse.json({ error: 'Game not found or lock failed' }, { status: 404 });
+            return NextResponse.json({ success: false, error: 'Game not found or lock failed' }, { status: 404 });
         }
 
         const { player, game, allScratched, alreadyScratched } = result;
@@ -109,7 +117,7 @@ export async function POST(request: NextRequest) {
     } catch (error: any) {
         console.error('Error scratching card:', error);
         return NextResponse.json(
-            { error: error.message || 'Failed to scratch card' },
+            { success: false, error: error.message || 'Failed to scratch card' },
             { status: 500 }
         );
     }

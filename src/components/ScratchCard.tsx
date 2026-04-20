@@ -13,6 +13,7 @@ export default function ScratchCard({ onComplete, cardContent, isScratched }: Sc
     const [isScratching, setIsScratching] = useState(false);
     const [scratchPercent, setScratchPercent] = useState(0);
     const [scratchedByUser, setScratchedByUser] = useState(false);
+    const scratchCountRef = useRef(0);
 
     // Revealed when: already scratched from server, OR user scratched AND content received
     const revealed = isScratched || (scratchedByUser && cardContent !== null);
@@ -59,14 +60,19 @@ export default function ScratchCard({ onComplete, cardContent, isScratched }: Sc
         ctx.beginPath();
         ctx.arc(x, y, 30, 0, Math.PI * 2);
         ctx.fill();
+        
+        scratchCountRef.current += 1;
+        // Throttle the heavy getImageData calculation
+        if (scratchCountRef.current % 5 !== 0) return;
 
-        // Calculate scratch percentage
+        // Calculate scratch percentage (optimized)
         const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
         let transparent = 0;
-        for (let i = 3; i < imageData.data.length; i += 4) {
+        // Jump by 16 to sample roughly 1/4 of the pixels, massively improving performance
+        for (let i = 3; i < imageData.data.length; i += 16) {
             if (imageData.data[i] === 0) transparent++;
         }
-        const percent = (transparent / (imageData.data.length / 4)) * 100;
+        const percent = (transparent / (imageData.data.length / 16)) * 100;
         setScratchPercent(percent);
 
         if (percent >= REVEAL_THRESHOLD && !scratchedByUser) {
